@@ -601,11 +601,11 @@ export default function WorkLog() {
                                 </TouchableOpacity>
                             </View>
 
-                            <WorkEntryForm
+                            {showModal ? <WorkEntryForm
                                 initialData={editingEntry}
                                 onSubmit={submitWorkEntryForm}
                                 onCancel={() => setShowModal(false)}
-                            />
+                            /> : null}
 
                             {false && <>
                             <Text style={styles.inputLabel}>Date (YYYY-MM-DD)</Text>

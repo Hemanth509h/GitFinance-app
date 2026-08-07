@@ -31,7 +31,7 @@ function LoanForm({ initialData, onSubmit, onCancel }: any) {
 function RepaymentForm({ loan, initialData, onSubmit, onCancel, formatCurrency }: any) {
     const [data, setData] = useState(() => ({ date: initialData?.date?.slice(0, 10) || formToday(), amount: String(initialData?.amount || ""), method: initialData?.method || "Cash", note: initialData?.note || initialData?.description || "" }));
     const [workEntries, setWorkEntries] = useState<any[]>([]);
-    const [workEntryId, setWorkEntryId] = useState(initialData?.workEntryId || "");
+    const [workEntryId, setWorkEntryId] = useState(() => typeof initialData?.workEntryId === "object" ? initialData.workEntryId?._id || "" : initialData?.workEntryId || "");
     const [loadingEntries, setLoadingEntries] = useState(true);
     const [showWorkLogMenu, setShowWorkLogMenu] = useState(false);
     const [error, setError] = useState(""); const [submitting, setSubmitting] = useState(false); const set = (key: string, value: string) => setData((d) => ({ ...d, [key]: value })); const remaining = Math.max(0, Number(loan?.totalAmount || 0) - Number(loan?.amountPaid || 0) + Number(initialData?.amount || 0));
@@ -41,7 +41,7 @@ function RepaymentForm({ loan, initialData, onSubmit, onCancel, formatCurrency }
         return () => { isMounted = false; };
     }, []);
     const submit = async () => { const amount = Number(data.amount); if (!data.date || amount <= 0 || amount > remaining) return setError(amount > remaining ? "The repayment cannot exceed the remaining balance." : "Enter a valid repayment date and amount."); setSubmitting(true); try { await onSubmit({ ...data, amount, note: data.note.trim(), workEntryId: workEntryId || undefined, type: "Repayment", status: "Success" }); } finally { setSubmitting(false); } };
-    const selectedWorkEntry = workEntries.find((entry) => (entry._id || entry.id) === workEntryId);
+    const selectedWorkEntry = workEntries.find((entry) => String(entry._id || entry.id) === String(workEntryId));
     const formatWorkLogDate = (date: string) => { const parsed = new Date(date); return Number.isNaN(parsed.getTime()) ? date : parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }); };
     const workLogLabel = selectedWorkEntry ? `${formatWorkLogDate(selectedWorkEntry.date)} · ${selectedWorkEntry.client || "Work log"} · ${formatCurrency(Number(selectedWorkEntry.amount || 0))}` : "None";
     return <><View style={formStyles.summary}><Text style={formStyles.summaryText}>Remaining balance: {formatCurrency(remaining)}</Text></View><FormField label="Repayment date *" error={error}><FormInput value={data.date} onChangeText={(v) => set("date", v)} placeholder="YYYY-MM-DD" /></FormField><FormField label="Amount paid *"><FormInput keyboardType="decimal-pad" value={data.amount} onChangeText={(v) => set("amount", v)} placeholder="Amount repaid" /></FormField><FormField label="Payment method"><FormChoices value={data.method} options={["Cash", "Card", "Bank Transfer", "UPI"]} onChange={(v) => set("method", v)} /></FormField><FormField label="Link to work log (optional)">{loadingEntries ? <ActivityIndicator size="small" color="#10b981" /> : <View><TouchableOpacity onPress={() => setShowWorkLogMenu((visible) => !visible)} style={formStyles.dropdownTrigger}><Text numberOfLines={1} style={formStyles.dropdownTriggerText}>{workLogLabel}</Text><Ionicons name={showWorkLogMenu ? "chevron-up" : "chevron-down"} size={18} color="#94a3b8" /></TouchableOpacity>{showWorkLogMenu ? <View style={formStyles.dropdownMenu}><ScrollView nestedScrollEnabled style={formStyles.dropdownList}><TouchableOpacity onPress={() => { setWorkEntryId(""); setShowWorkLogMenu(false); }} style={formStyles.dropdownOption}><Text style={formStyles.dropdownOptionText}>None</Text></TouchableOpacity>{workEntries.map((entry) => { const id = entry._id || entry.id; return <TouchableOpacity key={id} onPress={() => { setWorkEntryId(id); setShowWorkLogMenu(false); }} style={[formStyles.dropdownOption, workEntryId === id && formStyles.dropdownOptionSelected]}><Text style={[formStyles.dropdownOptionText, workEntryId === id && formStyles.dropdownOptionTextSelected]}>{formatWorkLogDate(entry.date)} · {entry.client || "Work log"} · {formatCurrency(Number(entry.amount || 0))}</Text></TouchableOpacity>; })}</ScrollView></View> : null}</View>}</FormField><FormField label="Notes"><FormInput multiline value={data.note} onChangeText={(v) => set("note", v)} placeholder="Repayment notes" style={{ height: 82, textAlignVertical: "top", paddingTop: 12 }} /></FormField><FormActions submitLabel={initialData ? "Update repayment" : "Record repayment"} onSubmit={submit} onCancel={onCancel} submitting={submitting} /></>;
@@ -704,7 +704,8 @@ export default function Loan() {
                                                                                 {txs.map((tx: any, idx: number) => {
                                                                                     const isInterest = tx.type === "Interest";
                                                                                     return (
-                                                                                        <View key={tx._id} style={[styles.ledgerTxRow, idx > 0 && styles.ledgerTxRowBorder]}>
+                                                                                        <React.Fragment key={tx._id}>
+                                                                                        <View style={[styles.ledgerTxRow, idx > 0 && styles.ledgerTxRowBorder]}>
                                                                                             <View style={styles.ledgerTxLeft}>
                                                                                                 <Ionicons
                                                                                                     name={isInterest ? "trending-up" : "card-outline"}
@@ -735,6 +736,15 @@ export default function Loan() {
                                                                                                 </TouchableOpacity>
                                                                                             </View>
                                                                                         </View>
+                                                                                        {!isInterest && tx.workEntryId && (
+                                                                                            <View style={styles.ledgerWorkLogLink}>
+                                                                                                <Ionicons name="document-text-outline" size={14} color="#10b981" />
+                                                                                                <Text style={styles.ledgerWorkLogLinkText}>
+                                                                                                    Work log: {tx.workEntryId.client || "Linked work log"}{tx.workEntryId.date ? ` · ${formatDateShort(tx.workEntryId.date)}` : ""}
+                                                                                                </Text>
+                                                                                            </View>
+                                                                                        )}
+                                                                                        </React.Fragment>
                                                                                     );
                                                                                 })}
                                                                             </View>
@@ -854,7 +864,7 @@ export default function Loan() {
                                 </TouchableOpacity>
                             </View>
 
-                            <RepaymentForm loan={selectedLoan} initialData={editingRepayment} formatCurrency={formatCurrency} onSubmit={submitRepaymentForm} onCancel={() => setShowRepaymentModal(false)} />
+                            {showRepaymentModal ? <RepaymentForm loan={selectedLoan} initialData={editingRepayment} formatCurrency={formatCurrency} onSubmit={submitRepaymentForm} onCancel={() => setShowRepaymentModal(false)} /> : null}
 
                             {false && <>
                             <Text style={styles.inputLabel}>Repayment Date (YYYY-MM-DD)</Text>
