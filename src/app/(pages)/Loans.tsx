@@ -16,6 +16,7 @@ import {
 import { api } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { useAuth } from "../../context/AuthContext";
+import { ListSkeleton } from "../../components/ui/Skeleton";
 
 const formToday = () => new Date().toISOString().slice(0, 10);
 function FormField({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) { return <View style={formStyles.field}><Text style={formStyles.label}>{label}</Text>{children}{error ? <Text style={formStyles.error}>{error}</Text> : null}</View>; }
@@ -454,9 +455,7 @@ export default function Loan() {
             </View>
 
             {loading && !refreshing ? (
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#e11d48" />
-                </View>
+                <ListSkeleton count={4} />
             ) : (
                 <ScrollView
                     style={styles.scrollContainer}

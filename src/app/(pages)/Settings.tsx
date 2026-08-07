@@ -1,21 +1,42 @@
-import React, { useState, useEffect } from "react";
-import {
-    StyleSheet,
-    Text,
-    View,
-    TextInput,
-    TouchableOpacity,
-    ScrollView,
-    ActivityIndicator,
-    Alert,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 import { api } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 
 export default function Settings() {
-    const { user, refreshUser } = useAuth();
+    const { user, refreshUser, logout } = useAuth();
+
+    const handleLogout = async () => {
+        Alert.alert(
+            "Logout",
+            "Are you sure you want to log out?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Logout",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await logout();
+                        } catch (error) {
+                            Alert.alert("Error", "Failed to log out.");
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     // Form states
     const [name, setName] = useState(user?.name || "");
@@ -32,6 +53,37 @@ export default function Settings() {
     const [savingProfile, setSavingProfile] = useState(false);
     const [savingPassword, setSavingPassword] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+
+    // Server health states
+    const [serverStatus, setServerStatus] = useState<"checking" | "healthy" | "unhealthy">("checking");
+    const [checkingServer, setCheckingServer] = useState(false);
+    const [latency, setLatency] = useState<number | null>(null);
+
+    const checkServerHealth = async () => {
+        setCheckingServer(true);
+        setServerStatus("checking");
+        const startTime = Date.now();
+        try {
+            const res = await api.healthCheck();
+            const endTime = Date.now();
+            if (res && res.status === 200) {
+                setServerStatus("healthy");
+                setLatency(endTime - startTime);
+            } else {
+                setServerStatus("unhealthy");
+                setLatency(null);
+            }
+        } catch (error) {
+            setServerStatus("unhealthy");
+            setLatency(null);
+        } finally {
+            setCheckingServer(false);
+        }
+    };
+
+    useEffect(() => {
+        checkServerHealth();
+    }, []);
 
     // Sync fields with user context changes
     useEffect(() => {
@@ -278,6 +330,71 @@ export default function Settings() {
                     </View>
                 </View>
 
+                {/* Server Status Card */}
+                <View style={styles.card}>
+                    <LinearGradient
+                        colors={["#059669", "#064e3b"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.cardHeaderBanner}
+                    >
+                        <View style={styles.cardHeaderIconBox}>
+                            <Ionicons name="server" size={20} color="#ffffff" />
+                        </View>
+                        <View>
+                            <Text style={styles.cardHeaderTitle}>Server Status</Text>
+                            <Text style={styles.cardHeaderSubtitle}>Check backend server health</Text>
+                        </View>
+                    </LinearGradient>
+
+                    <View style={styles.cardBody}>
+                        <View style={styles.serverStatusRow}>
+                            <View style={styles.statusLabelContainer}>
+                                <Text style={styles.statusLabel}>Connection Status</Text>
+                                <View style={styles.statusIndicatorRow}>
+                                    <View
+                                        style={[
+                                            styles.statusDot,
+                                            { backgroundColor: serverStatus === "healthy" ? "#10b981" : serverStatus === "checking" ? "#eab308" : "#ef4444" }
+                                        ]}
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.statusValueText,
+                                            { color: serverStatus === "healthy" ? "#10b981" : serverStatus === "checking" ? "#eab308" : "#ef4444" }
+                                        ]}
+                                    >
+                                        {serverStatus === "healthy" ? "Online & Healthy" : serverStatus === "checking" ? "Checking Status..." : "Offline / Connecting..."}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.checkBtn}
+                                onPress={checkServerHealth}
+                                disabled={checkingServer}
+                            >
+                                {checkingServer ? (
+                                    <ActivityIndicator size="small" color="#ffffff" />
+                                ) : (
+                                    <>
+                                        <Ionicons name="pulse" size={16} color="#ffffff" />
+                                        <Text style={styles.checkBtnText}>Test</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+
+                        {latency !== null && (
+                            <Text style={styles.latencyText}>
+                                Response time: <Text style={{ fontWeight: "700", color: "#f8fafc" }}>{latency}ms</Text>
+                            </Text>
+                        )}
+
+
+                    </View>
+                </View>
+
                 {/* Save Profile Button */}
                 <TouchableOpacity
                     style={styles.submitBtn}
@@ -358,6 +475,15 @@ export default function Settings() {
                         </TouchableOpacity>
                     </View>
                 </View>
+
+                {/* Logout Button */}
+                <TouchableOpacity
+                    style={styles.logoutBtn}
+                    onPress={handleLogout}
+                >
+                    <Ionicons name="log-out" size={18} color="#ef4444" />
+                    <Text style={styles.logoutBtnText}>Log Out</Text>
+                </TouchableOpacity>
             </ScrollView>
         </View>
     );
@@ -537,5 +663,72 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "700",
         color: "#ffffff",
+    },
+    serverStatusRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
+    statusLabelContainer: {
+        flex: 1,
+    },
+    statusLabel: {
+        fontSize: 11,
+        fontWeight: "700",
+        color: "#64748b",
+        textTransform: "uppercase",
+        letterSpacing: 0.8,
+        marginBottom: 6,
+    },
+    statusIndicatorRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    statusValueText: {
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    checkBtn: {
+        backgroundColor: "#0d9488",
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    checkBtnText: {
+        color: "#ffffff",
+        fontSize: 12,
+        fontWeight: "700",
+    },
+    latencyText: {
+        fontSize: 11,
+        color: "#64748b",
+        marginTop: 8,
+    },
+    logoutBtn: {
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: "rgba(239, 68, 68, 0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(239, 68, 68, 0.2)",
+        borderRadius: 12,
+        paddingVertical: 14,
+        marginTop: 10,
+        marginBottom: 54,
+    },
+    logoutBtnText: {
+        color: "#ef4444",
+        fontSize: 14,
+        fontWeight: "700",
     },
 });

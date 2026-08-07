@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { MetricTile } from "../../components/ui/MetricTile";
+import { ListSkeleton } from "../../components/ui/Skeleton";
 import { router } from "expo-router";
 
 // ── Badge Component ──
@@ -231,9 +232,7 @@ export default function Dashboard() {
             </View>
 
             {loading ? (
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#10b981" />
-                </View>
+                <ListSkeleton count={4} />
             ) : (
                 <ScrollView
                     style={styles.scrollContainer}

@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { MetricTile } from "../../components/ui/MetricTile";
+import { ListSkeleton } from "../../components/ui/Skeleton";
 
 const formToday = () => new Date().toISOString().slice(0, 10);
 function FormField({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) { return <View style={formStyles.field}><Text style={formStyles.label}>{label}</Text>{children}{error ? <Text style={formStyles.error}>{error}</Text> : null}</View>; }
@@ -313,9 +314,7 @@ export default function Expenses() {
             </View>
 
             {loading && !refreshing ? (
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#ef4444" />
-                </View>
+                <ListSkeleton count={4} />
             ) : (
                 <ScrollView
                     style={styles.scrollContainer}

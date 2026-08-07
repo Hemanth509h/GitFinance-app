@@ -1,19 +1,79 @@
-
-import { router } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Animated, Image, ImageBackground, StyleSheet, Text } from 'react-native';
+import { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Image,
+    ImageBackground,
+    StyleSheet,
+    Text
+} from "react-native";
+import { api } from "../api";
 
 export default function Splashscreen() {
-    const scale = useRef(new Animated.Value(0)).current;
-    const opacity = useRef(new Animated.Value(0)).current;
+    const [isOpen, setIsOpen] = useState(false);
+    const [seconds, setSeconds] = useState(0);
+    const [showSlowNote, setShowSlowNote] = useState(false);
+
     useEffect(() => {
-        const timer = setTimeout(() => {
-            router.replace("/login");
-        }, 3000);
+        let isMounted = true;
+        let healthTimeout: ReturnType<typeof setTimeout>;
+        let secondsInterval: ReturnType<typeof setInterval>;
+        let slowNoteTimeout: ReturnType<typeof setTimeout>;
 
-        return () => clearTimeout(timer);
+        const checkHealth = async () => {
+            try {
+                const res = await api.healthCheck();
+                if (!isMounted) return;
+
+                if (res && res.status === 200) {
+                    setIsOpen(false);
+                    setSeconds(0);
+                    setShowSlowNote(false);
+
+                    if (secondsInterval) {
+                        clearInterval(secondsInterval);
+                        secondsInterval = undefined as any;
+                    }
+                    if (slowNoteTimeout) {
+                        clearTimeout(slowNoteTimeout);
+                        slowNoteTimeout = undefined as any;
+                    }
+                } else {
+                    handleUnhealthy();
+                }
+            } catch (error) {
+                if (!isMounted) return;
+                console.warn("Health check failed in Splash:", error);
+                handleUnhealthy();
+            }
+        };
+
+        const handleUnhealthy = () => {
+            setIsOpen(true);
+
+            if (!secondsInterval) {
+                secondsInterval = setInterval(() => {
+                    if (isMounted) setSeconds((s) => s + 1);
+                }, 1000);
+            }
+
+            if (!slowNoteTimeout) {
+                slowNoteTimeout = setTimeout(() => {
+                    if (isMounted) setShowSlowNote(true);
+                }, 4000);
+            }
+
+            healthTimeout = setTimeout(checkHealth, 3000);
+        };
+
+        checkHealth();
+
+        return () => {
+            isMounted = false;
+            if (healthTimeout) clearTimeout(healthTimeout);
+            if (secondsInterval) clearInterval(secondsInterval);
+            if (slowNoteTimeout) clearTimeout(slowNoteTimeout);
+        };
     }, []);
-
 
     return (
         <ImageBackground
@@ -27,6 +87,8 @@ export default function Splashscreen() {
                 resizeMode="contain"
             />
             <Text style={styles.title}>GitFinance</Text>
+            <ActivityIndicator size="small" color="#10b981" style={{ marginTop: 24 }} />
+
         </ImageBackground>
     );
 }
@@ -36,6 +98,7 @@ const styles = StyleSheet.create({
         flex: 1,
         width: '100%',
         height: '100%',
+        backgroundColor: "#081421",
         alignItems: "center",
         justifyContent: "center",
     },
@@ -45,7 +108,6 @@ const styles = StyleSheet.create({
         height: 200,
         borderRadius: 50,
     },
-
     title: {
         marginTop: 43,
         fontSize: 32,

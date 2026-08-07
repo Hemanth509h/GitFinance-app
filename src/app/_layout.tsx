@@ -6,23 +6,16 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
-function AuthGate() {
-  const { loading } = useAuth();
-
-  useEffect(() => {
-    if (!loading) {
-      SplashScreen.hideAsync();
-    }
-  }, [loading]);
-
-  return null;
-}
-
 export default function RootLayout() {
+  useEffect(() => {
+    SplashScreen.hideAsync().catch((err) => {
+      console.warn("Failed to hide native splash screen:", err);
+    });
+  }, []);
+
   return (
     <AuthProvider>
       <ServerHealth />
-      <AuthGate />
       <Stack screenOptions={{ headerShown: false }} />
     </AuthProvider>
   );

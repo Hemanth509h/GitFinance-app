@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../api";
 import { useAuth } from "../../context/AuthContext";
+import { ListSkeleton } from "../../components/ui/Skeleton";
 
 function PaymentForm({ workEntry, onSubmit, onCancel }: any) {
     const remaining = Math.max(0, Number(workEntry?.amount || 0) - Number(workEntry?.amountPaid || 0)); const [amount, setAmount] = useState(String(remaining)); const [status, setStatus] = useState("Paid"); const [error, setError] = useState(""); const [submitting, setSubmitting] = useState(false);
@@ -316,9 +317,7 @@ export default function Payments() {
             </View>
 
             {loading ? (
-                <View style={styles.loaderContainer}>
-                    <ActivityIndicator size="large" color="#10b981" />
-                </View>
+                <ListSkeleton count={4} />
             ) : (
                 <ScrollView
                     style={styles.scrollContainer}

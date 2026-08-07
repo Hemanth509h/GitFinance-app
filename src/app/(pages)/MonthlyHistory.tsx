@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../../api";
 import { useAuth } from "../../context/AuthContext";
+import { ListSkeleton } from "../../components/ui/Skeleton";
 
 interface MonthHistoryItem {
     month: string;
@@ -85,10 +86,7 @@ export default function MonthlyHistory() {
             </View>
 
             {loading ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#0d9488" />
-                    <Text style={styles.loadingText}>Loading history data...</Text>
-                </View>
+                <ListSkeleton count={4} />
             ) : months.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <Ionicons name="archive-outline" size={48} color="#64748b" />
