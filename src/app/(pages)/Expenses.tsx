@@ -449,23 +449,27 @@ export default function Expenses() {
                                                                 </Text>
                                                                 <View style={styles.cardActionsRow}>
                                                                     <TouchableOpacity
-                                                                        onPress={() => handleOpenEditModal(expense)}
+                                                                        onPress={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleOpenEditModal(expense);
+                                                                        }}
                                                                         style={styles.actionBtnSecondary}
                                                                     >
                                                                         <Ionicons
-                                                                            name="pencil-outline"
+                                                                            name="pencil-sharp"
                                                                             size={14}
                                                                             color="#60a5fa"
                                                                         />
                                                                     </TouchableOpacity>
                                                                     <TouchableOpacity
-                                                                        onPress={() =>
-                                                                            handleDeleteExpense(expense._id)
-                                                                        }
+                                                                        onPress={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleDeleteExpense(expense._id);
+                                                                        }}
                                                                         style={styles.actionBtnDanger}
                                                                     >
                                                                         <Ionicons
-                                                                            name="trash-outline"
+                                                                            name="trash-sharp"
                                                                             size={14}
                                                                             color="#ef4444"
                                                                         />
@@ -476,57 +480,70 @@ export default function Expenses() {
                                                             <Ionicons
                                                                 name={
                                                                     isExpanded
-                                                                        ? "chevron-up-outline"
-                                                                        : "chevron-down-outline"
+                                                                        ? "chevron-up"
+                                                                        : "chevron-down"
                                                                 }
-                                                                size={16}
+                                                                size={18}
                                                                 color="#94a3b8"
-                                                                style={{ marginLeft: 8 }}
+                                                                style={{ marginLeft: 6 }}
                                                             />
                                                         </TouchableOpacity>
 
                                                         {isExpanded && (
                                                             <View style={styles.expandedPanel}>
                                                                 <Text style={styles.expandedTitle}>
-                                                                    Expense Details
+                                                                    EXPENSE DETAILS
                                                                 </Text>
-                                                                <Text style={styles.expandedDetail}>
-                                                                    Date:{" "}
-                                                                    {new Date(
-                                                                        expense.date
-                                                                    ).toLocaleDateString(undefined, {
-                                                                        weekday: "long",
-                                                                        year: "numeric",
-                                                                        month: "long",
-                                                                        day: "numeric",
-                                                                    })}
-                                                                </Text>
-                                                                <Text style={styles.expandedDetail}>
-                                                                    Amount: {formatCurrency(expense.amount)}
-                                                                </Text>
-                                                                <Text style={styles.expandedDetail}>
-                                                                    Payment Method: {expense.paymentMethod}
-                                                                </Text>
-                                                                {expense.merchant && (
-                                                                    <Text style={styles.expandedDetail}>
-                                                                        Merchant: {expense.merchant}
-                                                                    </Text>
-                                                                )}
-                                                                <View style={styles.categoryBadgeWrapper}>
-                                                                    <Text style={[styles.expandedDetail, { marginBottom: 0 }]}>
-                                                                        Category:{" "}
-                                                                    </Text>
-                                                                    <Badge status={expense.category} />
+
+                                                                <View style={styles.expandedDetailsGroup}>
+                                                                    <View style={styles.expandedDetailRow}>
+                                                                        <Text style={styles.expandedDetailLabel}>Date: </Text>
+                                                                        <Text style={styles.expandedDetailValue}>
+                                                                            {new Date(expense.date).toLocaleDateString(undefined, {
+                                                                                weekday: "long",
+                                                                                year: "numeric",
+                                                                                month: "long",
+                                                                                day: "numeric",
+                                                                            })}
+                                                                        </Text>
+                                                                    </View>
+                                                                    <View style={styles.expandedDetailRow}>
+                                                                        <Text style={styles.expandedDetailLabel}>Amount: </Text>
+                                                                        <Text style={styles.expandedDetailValue}>
+                                                                            {formatCurrency(expense.amount)}
+                                                                        </Text>
+                                                                    </View>
+                                                                    <View style={styles.expandedDetailRow}>
+                                                                        <Text style={styles.expandedDetailLabel}>Payment Method: </Text>
+                                                                        <Text style={styles.expandedDetailValue}>
+                                                                            {expense.paymentMethod}
+                                                                        </Text>
+                                                                    </View>
+                                                                    {expense.merchant ? (
+                                                                        <View style={styles.expandedDetailRow}>
+                                                                            <Text style={styles.expandedDetailLabel}>Merchant: </Text>
+                                                                            <Text style={styles.expandedDetailValue}>
+                                                                                {expense.merchant}
+                                                                            </Text>
+                                                                        </View>
+                                                                    ) : null}
+                                                                    <View style={styles.categoryBadgeWrapper}>
+                                                                        <Text style={styles.expandedDetailLabel}>Category: </Text>
+                                                                        <Badge status={expense.category} />
+                                                                    </View>
                                                                 </View>
 
                                                                 <View style={styles.descriptionBox}>
-                                                                    <Text style={styles.descriptionLabel}>
-                                                                        Description / Notes
-                                                                    </Text>
-                                                                    <Text style={styles.descriptionContent}>
-                                                                        {expense.description ||
-                                                                            "No description provided."}
-                                                                    </Text>
+                                                                    <View style={styles.descriptionAccentBar} />
+                                                                    <View style={styles.descriptionTextWrapper}>
+                                                                        <Text style={styles.descriptionLabel}>
+                                                                            Description / Notes
+                                                                        </Text>
+                                                                        <Text style={styles.descriptionContent}>
+                                                                            {expense.description ||
+                                                                                "No description provided."}
+                                                                        </Text>
+                                                                    </View>
                                                                 </View>
                                                             </View>
                                                         )}
@@ -816,109 +833,134 @@ const styles = StyleSheet.create({
         alignItems: "center",
         borderLeftWidth: 3,
         borderColor: "#ef4444",
-        paddingLeft: 8,
-        marginBottom: 8,
+        paddingLeft: 10,
+        marginVertical: 10,
     },
     dateLabel: {
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: "700",
         color: "#ef4444",
+        letterSpacing: 0.2,
     },
     dateTotal: {
-        fontSize: 11,
+        fontSize: 12,
         color: "#94a3b8",
+        fontWeight: "600",
     },
     logCard: {
-        backgroundColor: "#172233",
-        borderRadius: 16,
+        backgroundColor: "#111c2d",
+        borderRadius: 18,
         borderWidth: 1,
-        borderColor: "#2b3a4e",
+        borderColor: "rgba(255, 255, 255, 0.08)",
         overflow: "hidden",
-        marginBottom: 10,
+        marginBottom: 12,
     },
     logCardMain: {
         flexDirection: "row",
         alignItems: "center",
-        padding: 12,
+        padding: 14,
     },
     dateBadge: {
-        width: 44,
-        height: 44,
-        borderRadius: 10,
+        width: 52,
+        height: 52,
+        borderRadius: 14,
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 10,
+        marginRight: 12,
     },
     dateBadgeMonth: {
-        fontSize: 9,
-        fontWeight: "700",
-        color: "#ffffff",
-        textTransform: "uppercase",
-        opacity: 0.85,
-    },
-    dateBadgeDay: {
-        fontSize: 16,
+        fontSize: 10,
         fontWeight: "800",
         color: "#ffffff",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+    },
+    dateBadgeDay: {
+        fontSize: 18,
+        fontWeight: "800",
+        color: "#ffffff",
+        marginTop: 1,
     },
     logCardLeft: {
         flex: 1,
         marginRight: 8,
     },
     logClient: {
-        fontSize: 14,
-        fontWeight: "600",
+        fontSize: 16,
+        fontWeight: "700",
         color: "#ffffff",
+        letterSpacing: 0.2,
     },
     logSubText: {
-        fontSize: 11,
+        fontSize: 12,
         color: "#94a3b8",
         marginTop: 4,
+        fontWeight: "500",
     },
     logCardRight: {
-        alignItems: "flex-end",
-        gap: 6,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
     },
     amountTextNegative: {
         fontSize: 14,
         fontWeight: "700",
         color: "#ef4444",
+        marginRight: 4,
     },
     cardActionsRow: {
         flexDirection: "row",
         gap: 6,
     },
     actionBtnSecondary: {
-        backgroundColor: "rgba(96, 165, 250, 0.1)",
-        padding: 6,
-        borderRadius: 6,
+        backgroundColor: "rgba(96, 165, 250, 0.15)",
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         justifyContent: "center",
         alignItems: "center",
     },
     actionBtnDanger: {
-        backgroundColor: "rgba(239, 68, 68, 0.1)",
-        padding: 6,
-        borderRadius: 6,
+        backgroundColor: "rgba(239, 68, 68, 0.15)",
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         justifyContent: "center",
         alignItems: "center",
     },
     expandedPanel: {
         padding: 16,
-        backgroundColor: "#1b283a",
+        backgroundColor: "#0d1726",
         borderTopWidth: 1,
-        borderColor: "#2b3a4e",
+        borderColor: "rgba(255, 255, 255, 0.08)",
     },
     expandedTitle: {
         fontSize: 11,
         color: "#94a3b8",
-        fontWeight: "700",
+        fontWeight: "800",
         textTransform: "uppercase",
+        letterSpacing: 1.2,
+        marginBottom: 14,
+    },
+    expandedDetailsGroup: {
+        marginBottom: 12,
+    },
+    expandedDetailRow: {
+        flexDirection: "row",
+        alignItems: "center",
         marginBottom: 8,
     },
-    expandedDetail: {
-        fontSize: 12,
-        color: "#f8fafc",
-        marginBottom: 4,
+    expandedDetailLabel: {
+        fontSize: 13,
+        color: "#94a3b8",
+        fontWeight: "500",
+        width: 140,
+    },
+    expandedDetailValue: {
+        fontSize: 13,
+        color: "#ffffff",
+        fontWeight: "600",
+        flex: 1,
     },
     categoryBadgeWrapper: {
         flexDirection: "row",
@@ -926,23 +968,33 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     descriptionBox: {
-        marginTop: 8,
-        padding: 10,
-        backgroundColor: "#172233",
-        borderRadius: 8,
-        borderLeftWidth: 3,
-        borderColor: "#ef4444",
+        marginTop: 10,
+        padding: 12,
+        backgroundColor: "#152238",
+        borderRadius: 12,
+        flexDirection: "row",
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.05)",
+    },
+    descriptionAccentBar: {
+        width: 3,
+        borderRadius: 2,
+        backgroundColor: "#ef4444",
+        marginRight: 10,
+    },
+    descriptionTextWrapper: {
+        flex: 1,
     },
     descriptionLabel: {
-        fontSize: 10,
+        fontSize: 11,
         color: "#94a3b8",
         fontWeight: "700",
         marginBottom: 4,
     },
     descriptionContent: {
-        fontSize: 12,
-        color: "#f8fafc",
-        lineHeight: 16,
+        fontSize: 13,
+        color: "#ffffff",
+        lineHeight: 18,
     },
     badgeContainer: {
         paddingHorizontal: 8,

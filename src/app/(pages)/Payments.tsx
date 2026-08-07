@@ -442,6 +442,19 @@ export default function Payments() {
                                                 activeOpacity={0.9}
                                                 onPress={() => toggleExpand(log._id)}
                                             >
+                                                {/* Date Badge */}
+                                                <LinearGradient
+                                                    colors={["#059669", "#10b981"]}
+                                                    style={styles.dateBadge}
+                                                >
+                                                    <Text style={styles.dateBadgeMonth}>
+                                                        {new Date(log.date).toLocaleString("default", { month: "short" })}
+                                                    </Text>
+                                                    <Text style={styles.dateBadgeDay}>
+                                                        {new Date(log.date).getDate()}
+                                                    </Text>
+                                                </LinearGradient>
+
                                                 <View style={styles.logCardLeft}>
                                                     <Text style={styles.logClient} numberOfLines={1}>
                                                         {log.client}
@@ -451,22 +464,31 @@ export default function Payments() {
                                                 <View style={styles.logCardRight}>
                                                     <View style={styles.logCardRow}>
                                                         <TouchableOpacity
-                                                            onPress={() => handleOpenPaymentModal(log)}
+                                                            onPress={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenPaymentModal(log);
+                                                            }}
                                                             style={styles.actionBtnPrimary}
                                                         >
-                                                            <Ionicons name="card-outline" size={14} color="#ffffff" />
+                                                            <Ionicons name="card" size={14} color="#ffffff" />
                                                         </TouchableOpacity>
                                                         <TouchableOpacity
-                                                            onPress={() => handleOpenEditModal(log)}
+                                                            onPress={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenEditModal(log);
+                                                            }}
                                                             style={styles.actionBtnSecondary}
                                                         >
-                                                            <Ionicons name="create-outline" size={14} color="#f8fafc" />
+                                                            <Ionicons name="pencil-sharp" size={14} color="#60a5fa" />
                                                         </TouchableOpacity>
                                                         <TouchableOpacity
-                                                            onPress={() => handleDeleteWorkEntry(log._id)}
+                                                            onPress={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteWorkEntry(log._id);
+                                                            }}
                                                             style={styles.actionBtnDanger}
                                                         >
-                                                            <Ionicons name="trash-outline" size={14} color="#ef4444" />
+                                                            <Ionicons name="trash-sharp" size={14} color="#ef4444" />
                                                         </TouchableOpacity>
                                                     </View>
                                                     <View style={styles.badgeWrapper}>
@@ -474,10 +496,10 @@ export default function Payments() {
                                                     </View>
                                                 </View>
                                                 <Ionicons
-                                                    name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
-                                                    size={16}
+                                                    name={isExpanded ? "chevron-up" : "chevron-down"}
+                                                    size={18}
                                                     color="#94a3b8"
-                                                    style={{ marginLeft: 8 }}
+                                                    style={{ marginLeft: 6 }}
                                                 />
                                             </TouchableOpacity>
 
@@ -502,24 +524,42 @@ export default function Payments() {
                                             {/* Expandable Panel */}
                                             {isExpanded && (
                                                 <View style={styles.expandedPanel}>
-                                                    <Text style={styles.expandedTitle}>Detailed Log Info</Text>
-                                                    <Text style={styles.expandedDetail}>
-                                                        Date:{" "}
-                                                        {new Date(log.date).toLocaleDateString(undefined, {
-                                                            weekday: "long",
-                                                            year: "numeric",
-                                                            month: "long",
-                                                            day: "numeric",
-                                                        })}
-                                                    </Text>
-                                                    {log.description ? (
-                                                        <View style={styles.descriptionBox}>
-                                                            <Text style={styles.descriptionLabel}>Description</Text>
-                                                            <Text style={styles.descriptionContent}>{log.description}</Text>
+                                                    <Text style={styles.expandedTitle}>LOG DETAILS</Text>
+                                                    <View style={styles.expandedDetailsGroup}>
+                                                        <View style={styles.expandedDetailRow}>
+                                                            <Text style={styles.expandedDetailLabel}>Date: </Text>
+                                                            <Text style={styles.expandedDetailValue}>
+                                                                {new Date(log.date).toLocaleDateString(undefined, {
+                                                                    weekday: "long",
+                                                                    year: "numeric",
+                                                                    month: "long",
+                                                                    day: "numeric",
+                                                                })}
+                                                            </Text>
                                                         </View>
-                                                    ) : (
-                                                        <Text style={styles.noDescription}>No description provided.</Text>
-                                                    )}
+                                                        <View style={styles.expandedDetailRow}>
+                                                            <Text style={styles.expandedDetailLabel}>Expected Amount: </Text>
+                                                            <Text style={styles.expandedDetailValue}>{formatCurrency(log.amount)}</Text>
+                                                        </View>
+                                                        <View style={styles.expandedDetailRow}>
+                                                            <Text style={styles.expandedDetailLabel}>Amount Received: </Text>
+                                                            <Text style={styles.expandedDetailValue}>{formatCurrency(log.amountPaid || 0)}</Text>
+                                                        </View>
+                                                        <View style={styles.expandedDetailRow}>
+                                                            <Text style={styles.expandedDetailLabel}>Remaining Balance: </Text>
+                                                            <Text style={styles.expandedDetailValue}>{formatCurrency(remaining)}</Text>
+                                                        </View>
+                                                    </View>
+
+                                                    <View style={styles.descriptionBox}>
+                                                        <View style={styles.descriptionAccentBar} />
+                                                        <View style={styles.descriptionTextWrapper}>
+                                                            <Text style={styles.descriptionLabel}>Notes / Description</Text>
+                                                            <Text style={styles.descriptionContent}>
+                                                                {log.description || "No description provided."}
+                                                            </Text>
+                                                        </View>
+                                                    </View>
                                                 </View>
                                             )}
                                         </View>
@@ -571,6 +611,19 @@ export default function Payments() {
                                                                             activeOpacity={0.9}
                                                                             onPress={() => toggleExpand(log._id)}
                                                                         >
+                                                                            {/* Date Badge */}
+                                                                            <LinearGradient
+                                                                                colors={["#0072ff", "#00c6ff"]}
+                                                                                style={styles.dateBadge}
+                                                                            >
+                                                                                <Text style={styles.dateBadgeMonth}>
+                                                                                    {new Date(log.datePaid || log.date).toLocaleString("default", { month: "short" })}
+                                                                                </Text>
+                                                                                <Text style={styles.dateBadgeDay}>
+                                                                                    {new Date(log.datePaid || log.date).getDate()}
+                                                                                </Text>
+                                                                            </LinearGradient>
+
                                                                             <View style={styles.logCardLeft}>
                                                                                 <Text
                                                                                     style={styles.logClient}
@@ -593,30 +646,31 @@ export default function Payments() {
                                                                                         log.amountPaid || log.amount
                                                                                     )}
                                                                                 </Text>
-                                                                                <View style={styles.logCardRow}>
+                                                                                <View style={styles.cardActionsRow}>
                                                                                     <TouchableOpacity
-                                                                                        onPress={() =>
-                                                                                            handleOpenEditModal(log)
-                                                                                        }
+                                                                                        onPress={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            handleOpenEditModal(log);
+                                                                                        }}
+                                                                                        style={styles.actionBtnSecondary}
                                                                                     >
                                                                                         <Ionicons
-                                                                                            name="create-outline"
+                                                                                            name="pencil-sharp"
                                                                                             size={14}
-                                                                                            color="#94a3b8"
-                                                                                            style={{
-                                                                                                marginRight: 10,
-                                                                                            }}
+                                                                                            color="#60a5fa"
                                                                                         />
                                                                                     </TouchableOpacity>
                                                                                     <TouchableOpacity
-                                                                                        onPress={() =>
+                                                                                        onPress={(e) => {
+                                                                                            e.stopPropagation();
                                                                                             handleDeleteWorkEntry(
                                                                                                 log._id
-                                                                                            )
-                                                                                        }
+                                                                                            );
+                                                                                        }}
+                                                                                        style={styles.actionBtnDanger}
                                                                                     >
                                                                                         <Ionicons
-                                                                                            name="trash-outline"
+                                                                                            name="trash-sharp"
                                                                                             size={14}
                                                                                             color="#ef4444"
                                                                                         />
@@ -626,69 +680,64 @@ export default function Payments() {
                                                                             <Ionicons
                                                                                 name={
                                                                                     isExpanded
-                                                                                        ? "chevron-up-outline"
-                                                                                        : "chevron-down-outline"
+                                                                                        ? "chevron-up"
+                                                                                        : "chevron-down"
                                                                                 }
-                                                                                size={16}
+                                                                                size={18}
                                                                                 color="#94a3b8"
-                                                                                style={{ marginLeft: 8 }}
+                                                                                style={{ marginLeft: 6 }}
                                                                             />
                                                                         </TouchableOpacity>
 
                                                                         {isExpanded && (
                                                                             <View style={styles.expandedPanel}>
-                                                                                <Text style={styles.expandedDetail}>
-                                                                                    Work Date:{" "}
-                                                                                    {new Date(
-                                                                                        log.date
-                                                                                    ).toLocaleDateString(
-                                                                                        undefined,
-                                                                                        {
-                                                                                            year: "numeric",
-                                                                                            month: "long",
-                                                                                            day: "numeric",
-                                                                                        }
-                                                                                    )}
-                                                                                </Text>
-                                                                                <Text style={styles.expandedDetail}>
-                                                                                    Paid On:{" "}
-                                                                                    {log.datePaid
-                                                                                        ? formatDate(
-                                                                                              log.datePaid
-                                                                                          )
-                                                                                        : formatDate(log.date)}
-                                                                                </Text>
-                                                                                {log.description ? (
-                                                                                    <View
-                                                                                        style={
-                                                                                            styles.descriptionBox
-                                                                                        }
-                                                                                    >
-                                                                                        <Text
-                                                                                            style={
-                                                                                                styles.descriptionLabel
-                                                                                            }
-                                                                                        >
-                                                                                            Description
-                                                                                        </Text>
-                                                                                        <Text
-                                                                                            style={
-                                                                                                styles.descriptionContent
-                                                                                            }
-                                                                                        >
-                                                                                            {log.description}
+                                                                                <Text style={styles.expandedTitle}>LOG DETAILS</Text>
+                                                                                <View style={styles.expandedDetailsGroup}>
+                                                                                    <View style={styles.expandedDetailRow}>
+                                                                                        <Text style={styles.expandedDetailLabel}>Work Date: </Text>
+                                                                                        <Text style={styles.expandedDetailValue}>
+                                                                                            {new Date(
+                                                                                                log.date
+                                                                                            ).toLocaleDateString(
+                                                                                                undefined,
+                                                                                                {
+                                                                                                    weekday: "long",
+                                                                                                    year: "numeric",
+                                                                                                    month: "long",
+                                                                                                    day: "numeric",
+                                                                                                }
+                                                                                            )}
                                                                                         </Text>
                                                                                     </View>
-                                                                                ) : (
-                                                                                    <Text
-                                                                                        style={
-                                                                                            styles.noDescription
-                                                                                        }
-                                                                                    >
-                                                                                        No description
-                                                                                        provided.
-                                                                                    </Text>
-                                                                                )}
+                                                                                    <View style={styles.expandedDetailRow}>
+                                                                                        <Text style={styles.expandedDetailLabel}>Paid On: </Text>
+                                                                                        <Text style={styles.expandedDetailValue}>
+                                                                                            {log.datePaid
+                                                                                                ? formatDate(
+                                                                                                      log.datePaid
+                                                                                                  )
+                                                                                                : formatDate(log.date)}
+                                                                                        </Text>
+                                                                                    </View>
+                                                                                    <View style={styles.expandedDetailRow}>
+                                                                                        <Text style={styles.expandedDetailLabel}>Amount Paid: </Text>
+                                                                                        <Text style={styles.expandedDetailValue}>
+                                                                                            {formatCurrency(log.amountPaid || log.amount)}
+                                                                                        </Text>
+                                                                                    </View>
+                                                                                </View>
+
+                                                                                <View style={styles.descriptionBox}>
+                                                                                    <View style={styles.descriptionAccentBar} />
+                                                                                    <View style={styles.descriptionTextWrapper}>
+                                                                                        <Text style={styles.descriptionLabel}>
+                                                                                            Notes / Description
+                                                                                        </Text>
+                                                                                        <Text style={styles.descriptionContent}>
+                                                                                            {log.description || "No description provided."}
+                                                                                        </Text>
+                                                                                    </View>
+                                                                                </View>
                                                                             </View>
                                                                         )}
                                                                     </View>
@@ -1009,6 +1058,26 @@ const styles = StyleSheet.create({
         alignItems: "center",
         padding: 16,
     },
+    dateBadge: {
+        width: 44,
+        height: 44,
+        borderRadius: 10,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 12,
+    },
+    dateBadgeMonth: {
+        color: "#ffffff",
+        fontSize: 10,
+        fontWeight: "700",
+        textTransform: "uppercase",
+    },
+    dateBadgeDay: {
+        color: "#ffffff",
+        fontSize: 15,
+        fontWeight: "800",
+        marginTop: -2,
+    },
     logCardLeft: {
         flex: 1,
         marginRight: 8,
@@ -1025,6 +1094,11 @@ const styles = StyleSheet.create({
     },
     logCardRight: {
         alignItems: "flex-end",
+    },
+    cardActionsRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
     },
     logCardRow: {
         flexDirection: "row",
@@ -1083,40 +1157,61 @@ const styles = StyleSheet.create({
     },
     expandedPanel: {
         padding: 16,
-        backgroundColor: "#1b283a",
+        backgroundColor: "#0d1726",
         borderTopWidth: 1,
-        borderColor: "#2b3a4e",
+        borderTopColor: "rgba(255, 255, 255, 0.05)",
     },
     expandedTitle: {
-        fontSize: 12,
+        fontSize: 11,
         color: "#94a3b8",
         fontWeight: "700",
-        textTransform: "uppercase",
-        marginBottom: 8,
+        letterSpacing: 0.5,
+        marginBottom: 12,
     },
-    expandedDetail: {
+    expandedDetailsGroup: {
+        gap: 8,
+        marginBottom: 14,
+    },
+    expandedDetailRow: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    expandedDetailLabel: {
+        fontSize: 12,
+        color: "#94a3b8",
+        fontWeight: "500",
+    },
+    expandedDetailValue: {
         fontSize: 12,
         color: "#f8fafc",
-        marginBottom: 4,
+        fontWeight: "600",
     },
     descriptionBox: {
-        marginTop: 8,
-        padding: 10,
-        backgroundColor: "#172233",
+        flexDirection: "row",
+        backgroundColor: "#162235",
         borderRadius: 8,
-        borderLeftWidth: 3,
-        borderColor: "#10b981",
+        padding: 12,
+        marginTop: 4,
+    },
+    descriptionAccentBar: {
+        width: 3,
+        borderRadius: 2,
+        backgroundColor: "#10b981",
+        marginRight: 10,
+    },
+    descriptionTextWrapper: {
+        flex: 1,
     },
     descriptionLabel: {
-        fontSize: 10,
+        fontSize: 11,
         color: "#94a3b8",
         fontWeight: "700",
         marginBottom: 4,
     },
     descriptionContent: {
-        fontSize: 12,
-        color: "#f8fafc",
-        lineHeight: 16,
+        fontSize: 13,
+        color: "#ffffff",
+        lineHeight: 18,
     },
     noDescription: {
         fontSize: 11,
