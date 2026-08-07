@@ -6,7 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gitfinance",
-    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#081421",
+    "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon"
     },
@@ -30,7 +31,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/logo.png",
-          "imageWidth": 100,
+          "imageWidth": 60,
           "resizeMode": "contain",
           "backgroundColor": "#081421"
         }

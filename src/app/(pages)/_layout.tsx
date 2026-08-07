@@ -1,14 +1,15 @@
-import React from "react";
-import { View, StatusBar, StyleSheet } from "react-native";
+import { Redirect, Slot } from "expo-router";
+import { StatusBar, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Slot, Redirect } from "expo-router";
-import { useAuth } from "../../context/AuthContext";
 import BottomNav from "../../components/BottomNav";
+import { useAuth } from "../../context/AuthContext";
 
 export default function PagesLayout() {
     const { isAuthenticated, loading } = useAuth();
 
-    if (loading) return null;
+    if (loading) {
+        return <View style={{ flex: 1, backgroundColor: "#081421" }} />;
+    }
 
     if (!isAuthenticated) {
         return <Redirect href="/login" />;
