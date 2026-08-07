@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import ServerHealth from "../components/ServerHealth";
+import { ToastProvider } from "../components/ui/Toast";
 import { AuthProvider } from "../context/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -14,9 +15,16 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AuthProvider>
-      <ServerHealth />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#081421" } }} />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <ServerHealth />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "#081421" },
+          }}
+        />
+      </AuthProvider>
+    </ToastProvider>
   );
 }

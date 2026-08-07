@@ -13,6 +13,7 @@ import {
     View
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
+import { toast } from "../../components/ui/Toast";
 
 export default function Login() {
     const { login } = useAuth();
@@ -45,13 +46,13 @@ export default function Login() {
 
         try {
             await login(form.email, form.password);
+            toast.success("Signed in successfully.");
             console.log("Login success");
             router.replace("/");
         } catch (err: any) {
-            setError(
-                err?.response?.data?.message ||
-                "Login failed. Please try again."
-            );
+            const message = err?.response?.data?.message || "Login failed. Please try again.";
+            setError(message);
+            toast.error(message);
         } finally {
             setLoading(false);
         }

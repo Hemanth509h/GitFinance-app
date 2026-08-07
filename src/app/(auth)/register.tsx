@@ -14,6 +14,7 @@ import {
 } from "react-native";
 
 import { useAuth } from "../../context/AuthContext";
+import { toast } from "../../components/ui/Toast";
 
 export default function Register() {
     const { register } = useAuth();
@@ -75,13 +76,13 @@ export default function Register() {
                 form.name
             );
 
+            toast.success("Account created successfully.");
             console.log("Registration success");
             router.replace("/");
         } catch (err: any) {
-            setError(
-                err?.response?.data?.message ||
-                "Registration failed. Please try again."
-            );
+            const message = err?.response?.data?.message || "Registration failed. Please try again.";
+            setError(message);
+            toast.error(message);
         } finally {
             setLoading(false);
         }
