@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Modal,
@@ -308,9 +309,15 @@ export default function WorkLog() {
     fetchLogs();
   };
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
+  const hasLoadedRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (hasLoadedRef.current) return;
+      hasLoadedRef.current = true;
+      fetchLogs();
+    }, []),
+  );
 
   // Filtered logs for selected month
   const filteredLogs = logs.filter((log) => {

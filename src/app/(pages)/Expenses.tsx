@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useState } from "react";
 import {
   Modal,
   RefreshControl,
@@ -289,9 +290,15 @@ export default function Expenses() {
     fetchExpenses();
   };
 
-  useEffect(() => {
-    fetchExpenses();
-  }, []);
+  const hasLoadedRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (hasLoadedRef.current) return;
+      hasLoadedRef.current = true;
+      fetchExpenses();
+    }, []),
+  );
 
   // Filtered expenses for selected month
   const filteredExpenses = expenses.filter((exp) => {

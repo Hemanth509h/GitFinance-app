@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { api } from "../../api";
 import { ListSkeleton } from "../../components/ui/Skeleton";
@@ -49,9 +50,15 @@ export default function MonthlyHistory() {
     }
   };
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
+  const hasLoadedRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (hasLoadedRef.current) return;
+      hasLoadedRef.current = true;
+      fetchHistory();
+    }, []),
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);

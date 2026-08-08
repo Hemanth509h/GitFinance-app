@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -231,21 +232,27 @@ function RepaymentForm({
       Number(loan?.amountPaid || 0) +
       Number(initialData?.amount || 0),
   );
-  useEffect(() => {
-    let isMounted = true;
-    api
-      .getWorkLogs()
-      .then(({ data: entries }) => {
-        if (isMounted) setWorkEntries(entries || []);
-      })
-      .catch((error) => console.error("Failed to load work logs", error))
-      .finally(() => {
-        if (isMounted) setLoadingEntries(false);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const hasLoadedRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (hasLoadedRef.current) return;
+      hasLoadedRef.current = true;
+      let isMounted = true;
+      api
+        .getWorkLogs()
+        .then(({ data: entries }) => {
+          if (isMounted) setWorkEntries(entries || []);
+        })
+        .catch((error) => console.error("Failed to load work logs", error))
+        .finally(() => {
+          if (isMounted) setLoadingEntries(false);
+        });
+      return () => {
+        isMounted = false;
+      };
+    }, []),
+  );
   const submit = async () => {
     const amount = Number(data.amount);
     if (!data.date || amount <= 0 || amount > remaining)

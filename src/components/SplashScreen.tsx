@@ -86,8 +86,19 @@ export default function Splashscreen() {
                 style={styles.logo}
                 resizeMode="contain"
             />
-            <Text style={styles.title}>GitFinance</Text>
+            <Text style={styles.title}>Gig Finances</Text>
             <ActivityIndicator size="small" color="#10b981" style={{ marginTop: 24 }} />
+            <Text style={styles.status}>
+                {showSlowNote
+                    ? `Starting up… ${seconds}s (first load can take up to 50 seconds)`
+                    : "Connecting to server…"}
+            </Text>
+
+            {showSlowNote && (
+                <Text style={styles.note}>
+                    The server wakes up on first visit. Please wait a moment.
+                </Text>
+            )}
 
         </ImageBackground>
     );
@@ -114,8 +125,25 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: '#FFFFFF',
         letterSpacing: 0.75,
-        textShadowColor: 'rgba(16, 185, 129, 0.3)',
-        textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 6,
-    }
+        shadowColor: 'rgba(16, 185, 129, 0.3)',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.9,
+        shadowRadius: 6,
+        elevation: 4,
+    },
+     status: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#94a3b8",
+        textAlign: "center",
+        lineHeight: 20,
+        marginTop: 8,
+    },
+    note: {
+        fontSize: 12,
+        color: "#64748b",
+        textAlign: "center",
+        marginTop: 12,
+        lineHeight: 16,
+    },
 });

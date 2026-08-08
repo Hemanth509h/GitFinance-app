@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -144,44 +144,26 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const [summaryRes, analyticsRes, workLogsRes] = await Promise.all([
+      const [summaryRes, analyticsRes] = await Promise.all([
         api.getDashboardSummary(),
         api.getAnalytics(),
-        api.getWorkLogs(),
       ]);
-      const currentMonth = new Date()
-        .toISOString()
-        .split("T")[0]
-        .substring(0, 7);
-      const totalEarnedThisMonth = (workLogsRes.data || [])
-        .filter(
-          (log: any) =>
-            log.date &&
-            new Date(log.date).toISOString().split("T")[0].substring(0, 7) ===
-              currentMonth,
-        )
-        .reduce((sum: number, log: any) => {
-          if (log.status === "Paid") return sum + Number(log.amount || 0);
-          return sum + Number(log.amountPaid || 0);
-        }, 0);
+
+      const summaryData = summaryRes.data || {};
 
       setSummary({
-        totalEarnedThisMonth,
+        totalEarnedThisMonth: Number(summaryData.totalEarnedThisMonth || 0),
         totalExpensesThisMonth: Number(
-          summaryRes.data?.totalExpensesThisMonth || 0,
+          summaryData.totalExpensesThisMonth || 0,
         ),
-        netIncomeThisMonth:
-          totalEarnedThisMonth -
-          Number(summaryRes.data?.totalExpensesThisMonth || 0),
-        pendingPayments: Number(summaryRes.data?.pendingPayments || 0),
-        pendingCount: Number(summaryRes.data?.pendingCount || 0),
-        totalLoanBalance: Number(summaryRes.data?.totalLoanBalance || 0),
-        totalLoanGoal: Number(summaryRes.data?.totalLoanGoal || 0),
-        totalLoanPaid: Number(summaryRes.data?.totalLoanPaid || 0),
-        totalRepaidThisMonth: Number(
-          summaryRes.data?.totalRepaidThisMonth || 0,
-        ),
-        recentActivity: summaryRes.data?.recentActivity || [],
+        netIncomeThisMonth: Number(summaryData.netIncomeThisMonth || 0),
+        pendingPayments: Number(summaryData.pendingPayments || 0),
+        pendingCount: Number(summaryData.pendingCount || 0),
+        totalLoanBalance: Number(summaryData.totalLoanBalance || 0),
+        totalLoanGoal: Number(summaryData.totalLoanGoal || 0),
+        totalLoanPaid: Number(summaryData.totalLoanPaid || 0),
+        totalRepaidThisMonth: Number(summaryData.totalRepaidThisMonth || 0),
+        recentActivity: summaryData.recentActivity || [],
       });
       setAnalytics(analyticsRes.data || []);
     } catch (error) {
@@ -197,9 +179,15 @@ export default function Dashboard() {
     fetchData();
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const hasLoadedRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (hasLoadedRef.current) return;
+      hasLoadedRef.current = true;
+      fetchData();
+    }, []),
+  );
 
   const formatCurrency = (amount: number) => {
     const locale =

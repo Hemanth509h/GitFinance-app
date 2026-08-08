@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "GitFinance",
-    "slug": "GitFinance",
+    "name": "Gig Finances",
+    "slug": "gig-finances",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "gitfinance",
+    "scheme": "gigfinances",
     "backgroundColor": "#081421",
     "userInterfaceStyle": "dark",
     "ios": {

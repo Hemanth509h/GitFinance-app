@@ -1,20 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { api } from "../../api";
-import { showAlertToast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
-
-const Alert = { alert: showAlertToast };
 
 export default function Settings() {
   const { user, refreshUser, logout } = useAuth();
@@ -83,9 +82,15 @@ export default function Settings() {
     }
   };
 
-  useEffect(() => {
-    checkServerHealth();
-  }, []);
+  const hasLoadedRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (hasLoadedRef.current) return;
+      hasLoadedRef.current = true;
+      checkServerHealth();
+    }, []),
+  );
 
   // Sync fields with user context changes
   useEffect(() => {

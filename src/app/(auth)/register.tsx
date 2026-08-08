@@ -13,8 +13,8 @@ import {
     View,
 } from "react-native";
 
-import { useAuth } from "../../context/AuthContext";
 import { toast } from "../../components/ui/Toast";
+import { useAuth } from "../../context/AuthContext";
 
 export default function Register() {
     const { register } = useAuth();
@@ -103,18 +103,15 @@ export default function Register() {
             {/* Background Glow */}
 
             <View
-                pointerEvents="none"
-                style={styles.greenGlow}
+                style={[styles.greenGlow, { pointerEvents: 'none' }]}
             />
 
             <View
-                pointerEvents="none"
-                style={styles.blueGlow}
+                style={[styles.blueGlow, { pointerEvents: 'none' }]}
             />
 
             <View
-                pointerEvents="none"
-                style={styles.purpleGlow}
+                style={[styles.purpleGlow, { pointerEvents: 'none' }]}
             />
 
             <ScrollView
@@ -140,7 +137,7 @@ export default function Register() {
                         </View>
 
                         <Text style={styles.logoText}>
-                            GigFinance
+                            Gig Finances
                         </Text>
                     </View>
 

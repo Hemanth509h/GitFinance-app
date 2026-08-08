@@ -12,8 +12,8 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import { useAuth } from "../../context/AuthContext";
 import { toast } from "../../components/ui/Toast";
+import { useAuth } from "../../context/AuthContext";
 
 export default function Login() {
     const { login } = useAuth();
@@ -65,9 +65,9 @@ export default function Login() {
             keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
         >
             {/* Background */}
-            <View pointerEvents="none" style={styles.greenGlow} />
-            <View pointerEvents="none" style={styles.blueGlow} />
-            <View pointerEvents="none" style={styles.purpleGlow} />
+            <View style={[styles.greenGlow, { pointerEvents: 'none' }]} />
+            <View style={[styles.blueGlow, { pointerEvents: 'none' }]} />
+            <View style={[styles.purpleGlow, { pointerEvents: 'none' }]} />
 
             <ScrollView
                 style={styles.scrollView}
@@ -88,7 +88,7 @@ export default function Login() {
                         </View>
 
                         <Text style={styles.logoText}>
-                            GigFinance
+                            Gig Finances
                         </Text>
                     </View>
 
@@ -139,7 +139,7 @@ export default function Login() {
 
                             <TouchableOpacity
                                 onPress={() =>
-                                    router.push("/reset-password")
+                                    router.push("/forgot-password")
                                 }
                             >
                                 <Text style={styles.forgotPassword}>

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { router } from 'expo-router';
 import { api } from '../api';
 import { getToken, setToken, removeToken } from '../api/storage';
 
@@ -94,14 +95,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     setLoading(true);
+    setUser(null);
+
     try {
       await api.logout().catch(() => {});
     } catch {
       // Ignore network errors on logout
     } finally {
       await removeToken();
-      setUser(null);
       setLoading(false);
+      try {
+        await router.replace('/login');
+      } catch {
+        // no-op if navigation is unavailable during logout
+      }
     }
   };
 

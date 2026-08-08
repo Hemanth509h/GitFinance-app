@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Image,
     Modal,
+    StatusBar,
     StyleSheet,
     Text,
     View,
-    StatusBar,
 } from "react-native";
 import { api } from "../api";
 
@@ -30,7 +30,7 @@ export default function ServerHealth() {
                     setIsOpen(false);
                     setSeconds(0);
                     setShowSlowNote(false);
-                    
+
                     if (secondsInterval) {
                         clearInterval(secondsInterval);
                         secondsInterval = undefined as any;
@@ -93,8 +93,8 @@ export default function ServerHealth() {
             <StatusBar barStyle="light-content" backgroundColor="#081421" />
             <View style={styles.container}>
                 {/* Background glows */}
-                <View pointerEvents="none" style={styles.greenGlow} />
-                <View pointerEvents="none" style={styles.blueGlow} />
+                <View style={[styles.greenGlow, { pointerEvents: 'none' }]} />
+                <View style={[styles.blueGlow, { pointerEvents: 'none' }]} />
 
                 <View style={styles.card}>
                     {/* Logo */}
@@ -106,21 +106,15 @@ export default function ServerHealth() {
                         />
                     </View>
 
-                    <Text style={styles.title}>GitFinance</Text>
+                    <Text style={styles.title}>Gig Finances</Text>
 
                     <ActivityIndicator size="large" color="#10b981" style={styles.spinner} />
-
                     <Text style={styles.status}>
-                        {showSlowNote
-                            ? `Starting up… ${seconds}s (first load can take up to 50 seconds)`
-                            : "Connecting to server…"}
+
+                        Connecting to server…
                     </Text>
 
-                    {showSlowNote && (
-                        <Text style={styles.note}>
-                            The server wakes up on first visit. Please wait a moment.
-                        </Text>
-                    )}
+
                 </View>
             </View>
         </Modal>
@@ -201,11 +195,5 @@ const styles = StyleSheet.create({
         lineHeight: 20,
         marginTop: 8,
     },
-    note: {
-        fontSize: 12,
-        color: "#64748b",
-        textAlign: "center",
-        marginTop: 12,
-        lineHeight: 16,
-    },
+
 });

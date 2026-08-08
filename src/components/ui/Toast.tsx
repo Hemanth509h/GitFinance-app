@@ -51,13 +51,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       Animated.timing(opacity, {
         toValue: 1,
         duration: 180,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
       hideTimer.current = setTimeout(() => {
         Animated.timing(opacity, {
           toValue: 0,
           duration: 180,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }).start(() => setCurrent(null));
       }, 3200);
     },
@@ -71,8 +71,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {current ? (
         <Animated.View
-          pointerEvents="none"
-          style={[styles.container, styles[current.kind], { opacity }]}
+          style={[styles.container, styles[current.kind], { opacity, pointerEvents: 'none' }]}
         >
           <Text style={styles.text}>{current.message}</Text>
         </Animated.View>
