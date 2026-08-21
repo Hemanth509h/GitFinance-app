@@ -4,7 +4,8 @@ import { useFocusEffect } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
+    KeyboardAvoidingView,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -13,7 +14,10 @@ import {
     View,
 } from "react-native";
 import { api } from "../../api";
+import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
+
+const Alert = { alert: showAlertToast };
 
 export default function Settings() {
   const { user, refreshUser, logout } = useAuth();
@@ -106,9 +110,9 @@ export default function Settings() {
     setRefreshing(true);
     try {
       await refreshUser();
-      Alert.alert("Success", "Settings refreshed from server.");
+      toast.success("Settings refreshed from server.");
     } catch (error) {
-      Alert.alert("Error", "Failed to refresh settings.");
+      toast.error("Failed to refresh settings.");
     } finally {
       setRefreshing(false);
     }
@@ -116,14 +120,11 @@ export default function Settings() {
 
   const handleSaveProfile = async () => {
     if (!name.trim()) {
-      Alert.alert("Validation Error", "Name cannot be empty.");
+      toast.error("Name cannot be empty.");
       return;
     }
     if (isNaN(Number(monthlyGoal)) || Number(monthlyGoal) <= 0) {
-      Alert.alert(
-        "Validation Error",
-        "Please enter a valid monthly goal amount.",
-      );
+      toast.error("Please enter a valid monthly goal amount.");
       return;
     }
 
@@ -136,10 +137,10 @@ export default function Settings() {
         theme,
       });
       await refreshUser();
-      Alert.alert("Success", "Profile settings saved successfully!");
+      toast.success("Profile settings saved successfully.");
     } catch (err: any) {
       const msg = err.response?.data?.message || "Failed to save settings.";
-      Alert.alert("Error", msg);
+      toast.error(msg);
     } finally {
       setSavingProfile(false);
     }
@@ -147,18 +148,15 @@ export default function Settings() {
 
   const handleSavePassword = async () => {
     if (!currentPassword) {
-      Alert.alert("Validation Error", "Please enter your current password.");
+      toast.error("Please enter your current password.");
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert("Validation Error", "New passwords do not match.");
+      toast.error("New passwords do not match.");
       return;
     }
     if (password.length < 6) {
-      Alert.alert(
-        "Validation Error",
-        "New password must be at least 6 characters.",
-      );
+      toast.error("New password must be at least 6 characters.");
       return;
     }
 
@@ -171,10 +169,10 @@ export default function Settings() {
       setCurrentPassword("");
       setPassword("");
       setConfirmPassword("");
-      Alert.alert("Success", "Password updated successfully!");
+      toast.success("Password updated successfully.");
     } catch (err: any) {
       const msg = err.response?.data?.message || "Failed to update password.";
-      Alert.alert("Error", msg);
+      toast.error(msg);
     } finally {
       setSavingPassword(false);
     }
@@ -184,7 +182,12 @@ export default function Settings() {
     currency === "INR" ? "₹" : currency === "USD" ? "$" : "€";
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+    >
+      <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Settings</Text>
@@ -531,8 +534,9 @@ export default function Settings() {
           <Ionicons name="log-out" size={18} color="#ef4444" />
           <Text style={styles.logoutBtnText}>Log Out</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

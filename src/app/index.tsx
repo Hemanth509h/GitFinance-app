@@ -1,26 +1,18 @@
-import { Redirect } from "expo-router";
-import { useEffect, useState } from "react";
-import Splashscreen from "../components/SplashScreen";
+import { router } from "expo-router";
+import { useEffect } from "react";
+import SplashScreen from "../components/SplashScreen";
 import { useAuth } from "../context/AuthContext";
 
 export default function Index() {
   const { loading, isAuthenticated } = useAuth();
-  const [minimumDelayPassed, setMinimumDelayPassed] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMinimumDelayPassed(true);
-    }, 2000); // 2 seconds minimum delay
-    return () => clearTimeout(timer);
-  }, []);
+    if (loading) {
+      return;
+    }
 
-  if (loading || !minimumDelayPassed) {
-    return <Splashscreen />;
-  }
+    router.replace(isAuthenticated ? "/Dashboard" : "/login");
+  }, [loading, isAuthenticated]);
 
-  if (!isAuthenticated) {
-    return <Redirect href="/login" />;
-  }
-
-  return <Redirect href="/Dashboard" />;
+  return loading ? <SplashScreen /> : null;
 }

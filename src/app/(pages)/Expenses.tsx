@@ -3,7 +3,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import React, { useState } from "react";
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,7 +17,7 @@ import {
 import { api } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
-import { showAlertToast } from "../../components/ui/Toast";
+import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
 
 const Alert = { alert: showAlertToast };
@@ -413,11 +415,11 @@ export default function Expenses() {
 
   const handleSaveExpense = async () => {
     if (!amountInput.trim() || isNaN(Number(amountInput))) {
-      Alert.alert("Error", "Please enter a valid amount.");
+      toast.error("Please enter a valid amount.");
       return;
     }
     if (!categoryInput) {
-      Alert.alert("Error", "Please choose a category.");
+      toast.error("Please choose a category.");
       return;
     }
 
@@ -437,11 +439,14 @@ export default function Expenses() {
       } else {
         await api.createExpense(payload);
       }
+      toast.success(
+        editingExpense ? "Expense updated successfully." : "Expense added successfully.",
+      );
       setShowModal(false);
       fetchExpenses();
     } catch (error) {
       console.error("Failed to save expense", error);
-      Alert.alert("Error", "Failed to save expense entry.");
+      toast.error("Failed to save expense entry.");
       setLoading(false);
     }
   };
@@ -451,11 +456,14 @@ export default function Expenses() {
       setLoading(true);
       if (editingExpense) await api.updateExpense(editingExpense._id, payload);
       else await api.createExpense(payload);
+      toast.success(
+        editingExpense ? "Expense updated successfully." : "Expense added successfully.",
+      );
       setShowModal(false);
       fetchExpenses();
     } catch (error) {
       console.error("Failed to save expense", error);
-      Alert.alert("Error", "Failed to save expense.");
+      toast.error("Failed to save expense.");
       setLoading(false);
     }
   };
@@ -473,10 +481,11 @@ export default function Expenses() {
             try {
               setLoading(true);
               await api.deleteExpense(id);
+              toast.success("Expense deleted.");
               fetchExpenses();
             } catch (error) {
               console.error("Failed to delete expense", error);
-              Alert.alert("Error", "Failed to delete expense.");
+              toast.error("Failed to delete expense.");
               setLoading(false);
             }
           },
@@ -616,7 +625,6 @@ export default function Expenses() {
                               activeOpacity={0.9}
                               onPress={() => toggleExpand(expense._id)}
                             >
-                              {/* Date Badge */}
                               <LinearGradient
                                 colors={["#7f1d1d", "#ef4444"]}
                                 style={styles.dateBadge}
@@ -694,7 +702,7 @@ export default function Expenses() {
                                 <View style={styles.expandedDetailsGroup}>
                                   <View style={styles.expandedDetailRow}>
                                     <Text style={styles.expandedDetailLabel}>
-                                      Date:{" "}
+                                      Date: {" "}
                                     </Text>
                                     <Text style={styles.expandedDetailValue}>
                                       {new Date(
@@ -709,7 +717,7 @@ export default function Expenses() {
                                   </View>
                                   <View style={styles.expandedDetailRow}>
                                     <Text style={styles.expandedDetailLabel}>
-                                      Amount:{" "}
+                                      Amount: {" "}
                                     </Text>
                                     <Text style={styles.expandedDetailValue}>
                                       {formatCurrency(expense.amount)}
@@ -717,7 +725,7 @@ export default function Expenses() {
                                   </View>
                                   <View style={styles.expandedDetailRow}>
                                     <Text style={styles.expandedDetailLabel}>
-                                      Payment Method:{" "}
+                                      Payment Method: {" "}
                                     </Text>
                                     <Text style={styles.expandedDetailValue}>
                                       {expense.paymentMethod}
@@ -726,7 +734,7 @@ export default function Expenses() {
                                   {expense.merchant ? (
                                     <View style={styles.expandedDetailRow}>
                                       <Text style={styles.expandedDetailLabel}>
-                                        Merchant:{" "}
+                                        Merchant: {" "}
                                       </Text>
                                       <Text style={styles.expandedDetailValue}>
                                         {expense.merchant}
@@ -735,7 +743,7 @@ export default function Expenses() {
                                   ) : null}
                                   <View style={styles.categoryBadgeWrapper}>
                                     <Text style={styles.expandedDetailLabel}>
-                                      Category:{" "}
+                                      Category: {" "}
                                     </Text>
                                     <Badge status={expense.category} />
                                   </View>
@@ -770,134 +778,35 @@ export default function Expenses() {
       {/* Modal: Log / Edit Expense */}
       <Modal visible={showModal} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }}
+          <KeyboardAvoidingView
+            style={styles.modalContainer}
+            behavior={Platform.OS === "ios" ? "padding" : "position"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
           >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {editingExpense ? "Edit Expense" : "Add Expense"}
-                </Text>
-                <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                </TouchableOpacity>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {editingExpense ? "Edit Expense" : "Add Expense"}
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowModal(false)}>
+                    <Ionicons name="close-circle" size={24} color="#94a3b8" />
+                  </TouchableOpacity>
+                </View>
+
+                <ExpenseForm
+                  initialData={editingExpense}
+                  onSubmit={submitExpenseForm}
+                  onCancel={() => setShowModal(false)}
+                />
               </View>
-
-              <ExpenseForm
-                initialData={editingExpense}
-                onSubmit={submitExpenseForm}
-                onCancel={() => setShowModal(false)}
-              />
-
-              {false && (
-                <>
-                  <Text style={styles.inputLabel}>Date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={dateInput}
-                    onChangeText={setDateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Amount ({currency})</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    keyboardType="numeric"
-                    value={amountInput}
-                    onChangeText={setAmountInput}
-                    placeholder="Amount spent"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Merchant (Optional)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={merchantInput}
-                    onChangeText={setMerchantInput}
-                    placeholder="Where did you spend this?"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Category</Text>
-                  <View style={styles.categoriesWrap}>
-                    {EXPENSE_CATEGORIES.map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.catBtn,
-                          categoryInput === cat && styles.catBtnActive,
-                        ]}
-                        onPress={() => setCategoryInput(cat)}
-                      >
-                        <Text
-                          style={[
-                            styles.catBtnText,
-                            categoryInput === cat && styles.catBtnTextActive,
-                          ]}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <Text style={styles.inputLabel}>Payment Method</Text>
-                  <View style={styles.statusButtonsRow}>
-                    {PAYMENT_METHODS.map((method) => (
-                      <TouchableOpacity
-                        key={method}
-                        style={[
-                          styles.statusSelectorBtn,
-                          paymentMethodInput === method &&
-                            styles.statusSelectorBtnActive,
-                        ]}
-                        onPress={() => setPaymentMethodInput(method)}
-                      >
-                        <Text
-                          style={[
-                            styles.statusSelectorBtnText,
-                            paymentMethodInput === method &&
-                              styles.statusSelectorBtnTextActive,
-                          ]}
-                        >
-                          {method}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <Text style={styles.inputLabel}>Description / Notes</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      { height: 80, textAlignVertical: "top" },
-                    ]}
-                    multiline={true}
-                    value={descriptionInput}
-                    onChangeText={setDescriptionInput}
-                    placeholder="Expense notes"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <View style={[styles.modalButtonsRow, { marginTop: 16 }]}>
-                    <TouchableOpacity
-                      style={styles.modalCancelBtn}
-                      onPress={() => setShowModal(false)}
-                    >
-                      <Text style={styles.modalCancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.modalSubmitBtn}
-                      onPress={handleSaveExpense}
-                    >
-                      <Text style={styles.modalSubmitBtnText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1271,6 +1180,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: "rgba(8, 20, 33, 0.6)",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "#172233",

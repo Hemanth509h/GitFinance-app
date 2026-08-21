@@ -3,16 +3,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { api } from "../../api";
 import { ListSkeleton } from "../../components/ui/Skeleton";
-import { showAlertToast } from "../../components/ui/Toast";
+import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
 
 const Alert = { alert: showAlertToast };
@@ -43,7 +43,7 @@ export default function MonthlyHistory() {
       setMonths(data || []);
     } catch (error) {
       console.error("Failed to fetch monthly history", error);
-      Alert.alert("Error", "Failed to retrieve monthly history data.");
+      toast.error("Failed to retrieve monthly history data.");
     } finally {
       setLoading(false);
       setRefreshing(false);

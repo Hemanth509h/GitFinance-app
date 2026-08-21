@@ -1,4 +1,4 @@
-import { Redirect, Slot } from "expo-router";
+import { Slot } from "expo-router";
 import { StatusBar, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BottomNav from "../../components/BottomNav";
@@ -12,14 +12,14 @@ export default function PagesLayout() {
     }
 
     if (!isAuthenticated) {
-        return <Redirect href="/login" />;
+        return null;
     }
 
     return (
         <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
             <StatusBar barStyle="light-content" backgroundColor="#081421" />
 
-            <View style={styles.content}>
+            <View style={styles.contentInner}>
                 <Slot />
             </View>
 
@@ -33,7 +33,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#081421",
     },
-    content: {
+    contentInner: {
         flex: 1,
     },
 });

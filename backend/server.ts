@@ -10,9 +10,7 @@ import authRoutes from "./routes/auth.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import expenseRoutes from "./routes/expenses.js";
 import loanRoutes from "./routes/loans.js";
-import mailrouter from "./routes/mail.js";
 import workEntryRoutes from "./routes/workEntries.js";
-
 dotenv.config();
 
 const app = express();
@@ -113,7 +111,6 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/loans", loanRoutes);
 
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/auth", mailrouter);
 
 // ================================
 // Serve Frontend in Production

@@ -3,7 +3,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,7 +17,7 @@ import {
 import { api } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
-import { showAlertToast } from "../../components/ui/Toast";
+import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
 
 const Alert = { alert: showAlertToast };
@@ -427,11 +429,11 @@ export default function WorkLog() {
 
   const handleSaveEntry = async () => {
     if (!clientInput.trim()) {
-      Alert.alert("Error", "Please enter a client name.");
+      toast.error("Please enter a client name.");
       return;
     }
     if (!amountInput.trim() || isNaN(Number(amountInput))) {
-      Alert.alert("Error", "Please enter a valid expected amount.");
+      toast.error("Please enter a valid expected amount.");
       return;
     }
 
@@ -455,11 +457,12 @@ export default function WorkLog() {
       } else {
         await api.createWorkLog(payload);
       }
+      toast.success(editingEntry ? "Work entry updated successfully." : "Work entry created successfully.");
       setShowModal(false);
       fetchLogs();
     } catch (error) {
       console.error("Failed to save work log", error);
-      Alert.alert("Error", "Failed to save work log entry.");
+      toast.error("Failed to save work log entry.");
       setLoading(false);
     }
   };
@@ -469,17 +472,14 @@ export default function WorkLog() {
       setLoading(true);
       if (editingEntry) await api.updateWorkLog(editingEntry._id, payload);
       else await api.createWorkLog(payload);
-      Alert.alert(
-        "Success",
-        editingEntry
-          ? "Work entry updated successfully."
-          : "Work entry created successfully.",
+      toast.success(
+        editingEntry ? "Work entry updated successfully." : "Work entry created successfully.",
       );
       setShowModal(false);
       fetchLogs();
     } catch (error) {
       console.error("Failed to save work log", error);
-      Alert.alert("Error", "Failed to save work log entry.");
+      toast.error("Failed to save work log entry.");
       setLoading(false);
     }
   };
@@ -497,10 +497,11 @@ export default function WorkLog() {
             try {
               setLoading(true);
               await api.deleteWorkLog(id);
+              toast.success("Work entry deleted.");
               fetchLogs();
             } catch (error) {
               console.error("Failed to delete entry", error);
-              Alert.alert("Error", "Failed to delete entry.");
+              toast.error("Failed to delete entry.");
               setLoading(false);
             }
           },
@@ -522,7 +523,7 @@ export default function WorkLog() {
       fetchLogs();
     } catch (error) {
       console.error("Failed to quick mark paid", error);
-      Alert.alert("Error", "Failed to update status.");
+      toast.error("Failed to update status.");
       setLoading(false);
     }
   };
@@ -869,153 +870,44 @@ export default function WorkLog() {
                 ),
               )
             )}
-          </View>
-        </ScrollView>
+            </View>
+          </ScrollView>
       )}
 
       {/* Modal: Log / Edit Work Entry */}
       <Modal visible={showModal} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }}
+          <KeyboardAvoidingView
+            style={styles.modalContainer}
+            behavior={Platform.OS === "ios" ? "padding" : "position"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
           >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {editingEntry ? "Edit Work Entry" : "Log a Work Day"}
-                </Text>
-                <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                </TouchableOpacity>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {editingEntry ? "Edit Work Entry" : "Log a Work Day"}
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowModal(false)}>
+                    <Ionicons name="close-circle" size={24} color="#94a3b8" />
+                  </TouchableOpacity>
+                </View>
+
+                {showModal ? (
+                  <WorkEntryForm
+                    initialData={editingEntry}
+                    onSubmit={submitWorkEntryForm}
+                    onCancel={() => setShowModal(false)}
+                  />
+                ) : null}
               </View>
-
-              {showModal ? (
-                <WorkEntryForm
-                  initialData={editingEntry}
-                  onSubmit={submitWorkEntryForm}
-                  onCancel={() => setShowModal(false)}
-                />
-              ) : null}
-
-              {false && (
-                <>
-                  <Text style={styles.inputLabel}>Date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={dateInput}
-                    onChangeText={setDateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Client Name</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={clientInput}
-                    onChangeText={setClientInput}
-                    placeholder="Client name"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>
-                    Total Amount Expected ({currency})
-                  </Text>
-                  <TextInput
-                    style={styles.textInput}
-                    keyboardType="numeric"
-                    value={amountInput}
-                    onChangeText={setAmountInput}
-                    placeholder="Total expected"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>
-                    Amount Received So Far ({currency})
-                  </Text>
-                  <TextInput
-                    style={styles.textInput}
-                    keyboardType="numeric"
-                    value={amountPaidInput}
-                    onChangeText={setAmountPaidInput}
-                    placeholder="Total paid"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Status</Text>
-                  <View style={styles.statusButtonsRow}>
-                    {["Paid", "Partially Paid", "Unpaid"].map((st) => (
-                      <TouchableOpacity
-                        key={st}
-                        style={[
-                          styles.statusSelectorBtn,
-                          statusInput === st && styles.statusSelectorBtnActive,
-                        ]}
-                        onPress={() => {
-                          setStatusInput(st);
-                          if (st === "Paid" && amountInput) {
-                            setAmountPaidInput(amountInput);
-                          }
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.statusSelectorBtnText,
-                            statusInput === st &&
-                              styles.statusSelectorBtnTextActive,
-                          ]}
-                        >
-                          {st}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {statusInput === "Paid" && (
-                    <>
-                      <Text style={styles.inputLabel}>
-                        Date Paid (YYYY-MM-DD)
-                      </Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={datePaidInput}
-                        onChangeText={setDatePaidInput}
-                        placeholder="YYYY-MM-DD"
-                        placeholderTextColor="#64748b"
-                      />
-                    </>
-                  )}
-
-                  <Text style={styles.inputLabel}>Notes / Description</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      { height: 80, textAlignVertical: "top" },
-                    ]}
-                    multiline={true}
-                    value={descriptionInput}
-                    onChangeText={setDescriptionInput}
-                    placeholder="Log notes"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <View style={[styles.modalButtonsRow, { marginTop: 16 }]}>
-                    <TouchableOpacity
-                      style={styles.modalCancelBtn}
-                      onPress={() => setShowModal(false)}
-                    >
-                      <Text style={styles.modalCancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.modalSubmitBtn}
-                      onPress={handleSaveEntry}
-                    >
-                      <Text style={styles.modalSubmitBtnText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1402,6 +1294,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: "rgba(8, 20, 33, 0.6)",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "#172233",

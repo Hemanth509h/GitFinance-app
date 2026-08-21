@@ -3,19 +3,21 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { api } from "../../api";
 import { ListSkeleton } from "../../components/ui/Skeleton";
-import { showAlertToast } from "../../components/ui/Toast";
+import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
 
 const Alert = { alert: showAlertToast };
@@ -271,7 +273,7 @@ export default function Payments() {
     if (!selectedEntry) return;
     const newPaid = Number(amountPaidInput);
     if (isNaN(newPaid) || newPaid <= 0) {
-      Alert.alert("Error", "Please enter a valid amount");
+      toast.error("Please enter a valid amount.");
       return;
     }
 
@@ -285,7 +287,7 @@ export default function Payments() {
         status: paymentStatusInput || status,
         datePaid: new Date().toISOString(),
       });
-      Alert.alert("Success", "Payment recorded successfully!");
+      toast.success("Payment recorded successfully.");
       setShowPaymentModal(false);
       fetchLogs();
     } catch (error) {
@@ -336,7 +338,7 @@ export default function Payments() {
     const parsedPaid = Number(editAmountPaid);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert("Error", "Please enter a valid total amount");
+      toast.error("Please enter a valid total amount.");
       return;
     }
 
@@ -348,12 +350,12 @@ export default function Payments() {
         status: editStatus,
         description: editDescription,
       });
-      Alert.alert("Success", "Work entry updated successfully!");
+      toast.success("Work entry updated successfully.");
       setShowWorkEntryModal(false);
       fetchLogs();
     } catch (error) {
       console.error("Failed to update work entry", error);
-      Alert.alert("Error", "Failed to save work entry.");
+      toast.error("Failed to save work entry.");
     }
   };
 
@@ -370,11 +372,11 @@ export default function Payments() {
           onPress: async () => {
             try {
               await api.deleteWorkLog(id);
-              Alert.alert("Deleted", "Work entry deleted successfully!");
+              toast.success("Work entry deleted.");
               fetchLogs();
             } catch (error) {
               console.error("Failed to delete work entry", error);
-              Alert.alert("Error", "Failed to delete work entry.");
+              toast.error("Failed to delete work entry.");
             }
           },
         },
@@ -978,76 +980,33 @@ export default function Payments() {
         animationType="slide"
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Record a Payment</Text>
-              <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                <Ionicons name="close-circle" size={24} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
+          <KeyboardAvoidingView
+            style={styles.modalContainer}
+            behavior={Platform.OS === "ios" ? "padding" : "position"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+          >
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Record a Payment</Text>
+                  <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+                    <Ionicons name="close-circle" size={24} color="#94a3b8" />
+                  </TouchableOpacity>
+                </View>
 
-            <PaymentForm
-              workEntry={selectedEntry}
-              onSubmit={submitPaymentForm}
-              onCancel={() => setShowPaymentModal(false)}
-            />
-
-            {false && (
-              <>
-                <Text style={styles.inputLabel}>
-                  Amount Received ({currency})
-                </Text>
-                <TextInput
-                  style={styles.textInput}
-                  keyboardType="numeric"
-                  value={amountPaidInput}
-                  onChangeText={setAmountPaidInput}
-                  placeholder="Enter amount"
-                  placeholderTextColor="#64748b"
+                <PaymentForm
+                  workEntry={selectedEntry}
+                  onSubmit={submitPaymentForm}
+                  onCancel={() => setShowPaymentModal(false)}
                 />
-
-                <Text style={styles.inputLabel}>Updated Payment Status</Text>
-                <View style={styles.statusButtonsRow}>
-                  {["Paid", "Partially Paid"].map((st) => (
-                    <TouchableOpacity
-                      key={st}
-                      style={[
-                        styles.statusSelectorBtn,
-                        paymentStatusInput === st &&
-                          styles.statusSelectorBtnActive,
-                      ]}
-                      onPress={() => setPaymentStatusInput(st)}
-                    >
-                      <Text
-                        style={[
-                          styles.statusSelectorBtnText,
-                          paymentStatusInput === st &&
-                            styles.statusSelectorBtnTextActive,
-                        ]}
-                      >
-                        {st}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <View style={styles.modalButtonsRow}>
-                  <TouchableOpacity
-                    style={styles.modalCancelBtn}
-                    onPress={() => setShowPaymentModal(false)}
-                  >
-                    <Text style={styles.modalCancelBtnText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.modalSubmitBtn}
-                    onPress={handleRecordPayment}
-                  >
-                    <Text style={styles.modalSubmitBtnText}>Submit</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1560,6 +1519,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: "rgba(8, 20, 33, 0.6)",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "#172233",

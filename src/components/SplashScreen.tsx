@@ -9,7 +9,6 @@ import {
 import { api } from "../api";
 
 export default function Splashscreen() {
-    const [isOpen, setIsOpen] = useState(false);
     const [seconds, setSeconds] = useState(0);
     const [showSlowNote, setShowSlowNote] = useState(false);
 
@@ -25,7 +24,6 @@ export default function Splashscreen() {
                 if (!isMounted) return;
 
                 if (res && res.status === 200) {
-                    setIsOpen(false);
                     setSeconds(0);
                     setShowSlowNote(false);
 
@@ -48,8 +46,6 @@ export default function Splashscreen() {
         };
 
         const handleUnhealthy = () => {
-            setIsOpen(true);
-
             if (!secondsInterval) {
                 secondsInterval = setInterval(() => {
                     if (isMounted) setSeconds((s) => s + 1);

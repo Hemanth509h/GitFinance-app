@@ -4,7 +4,9 @@ import { useFocusEffect } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,7 +18,7 @@ import {
 import { api } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
-import { showAlertToast } from "../../components/ui/Toast";
+import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
 
 const Alert = { alert: showAlertToast };
@@ -651,11 +653,11 @@ export default function Loan() {
 
   const handleSaveLoan = async () => {
     if (!lenderInput.trim()) {
-      Alert.alert("Error", "Please enter a lender name.");
+      toast.error("Please enter a lender name.");
       return;
     }
     if (!loanAmountInput.trim() || isNaN(Number(loanAmountInput))) {
-      Alert.alert("Error", "Please enter a valid loan amount.");
+      toast.error("Please enter a valid loan amount.");
       return;
     }
 
@@ -674,11 +676,12 @@ export default function Loan() {
       } else {
         await api.createLoan(payload);
       }
+      toast.success(selectedLoan ? "Loan updated successfully." : "Loan created successfully.");
       setShowLoanModal(false);
       fetchLoans();
     } catch (error) {
       console.error("Failed to save loan", error);
-      Alert.alert("Error", "Failed to save loan.");
+      toast.error("Failed to save loan.");
       setLoading(false);
     }
   };
@@ -697,10 +700,11 @@ export default function Loan() {
               setLoading(true);
               await api.deleteLoan(id);
               setExpandedLoanId(null);
+              toast.success("Loan deleted.");
               fetchLoans();
             } catch (error) {
               console.error("Failed to delete loan", error);
-              Alert.alert("Error", "Failed to delete loan.");
+              toast.error("Failed to delete loan.");
               setLoading(false);
             }
           },
@@ -729,7 +733,7 @@ export default function Loan() {
 
   const handleSaveRepayment = async () => {
     if (!repaymentAmountInput.trim() || isNaN(Number(repaymentAmountInput))) {
-      Alert.alert("Error", "Please enter a valid amount.");
+      toast.error("Please enter a valid amount.");
       return;
     }
 
@@ -753,12 +757,13 @@ export default function Loan() {
       } else {
         await api.addLoanRepayment(selectedLoan._id, payload);
       }
+      toast.success(editingRepayment ? "Repayment updated." : "Repayment recorded.");
       setShowRepaymentModal(false);
       fetchLoans();
       fetchRepayments(selectedLoan._id);
     } catch (error) {
       console.error("Failed to save repayment", error);
-      Alert.alert("Error", "Failed to save repayment.");
+      toast.error("Failed to save repayment.");
       setLoading(false);
     }
   };
@@ -776,11 +781,12 @@ export default function Loan() {
             try {
               setLoading(true);
               await api.deleteLoanRepayment(loanId, repaymentId);
+              toast.success("Repayment deleted.");
               fetchLoans();
               fetchRepayments(loanId);
             } catch (error) {
               console.error("Failed to delete repayment", error);
-              Alert.alert("Error", "Failed to delete repayment.");
+              toast.error("Failed to delete repayment.");
               setLoading(false);
             }
           },
@@ -803,7 +809,7 @@ export default function Loan() {
 
   const handleSaveInterest = async () => {
     if (!interestAmountInput.trim() || isNaN(Number(interestAmountInput))) {
-      Alert.alert("Error", "Please enter a valid interest amount.");
+      toast.error("Please enter a valid interest amount.");
       return;
     }
 
@@ -816,12 +822,13 @@ export default function Loan() {
     try {
       setLoading(true);
       await api.addLoanInterest(selectedLoan._id, payload);
+      toast.success("Interest charge added.");
       setShowInterestModal(false);
       fetchLoans();
       fetchRepayments(selectedLoan._id);
     } catch (error) {
       console.error("Failed to save interest", error);
-      Alert.alert("Error", "Failed to save interest charge.");
+      toast.error("Failed to save interest charge.");
       setLoading(false);
     }
   };
@@ -831,11 +838,8 @@ export default function Loan() {
       setLoading(true);
       if (selectedLoan) await api.updateLoan(selectedLoan._id, payload);
       else await api.createLoan(payload);
-      Alert.alert(
-        "Success",
-        selectedLoan
-          ? "Loan updated successfully."
-          : "Loan created successfully.",
+      toast.success(
+        selectedLoan ? "Loan updated successfully." : "Loan created successfully.",
       );
       setShowLoanModal(false);
       fetchLoans();
@@ -856,11 +860,8 @@ export default function Loan() {
           payload,
         );
       else await api.addLoanRepayment(selectedLoan._id, payload);
-      Alert.alert(
-        "Success",
-        editingRepayment
-          ? "Repayment updated successfully."
-          : "Repayment recorded successfully.",
+      toast.success(
+        editingRepayment ? "Repayment updated successfully." : "Repayment recorded successfully.",
       );
       setShowRepaymentModal(false);
       fetchLoans();
@@ -913,6 +914,7 @@ export default function Loan() {
                 date: new Date().toISOString().substring(0, 10),
                 note: `Quick Monthly Interest`,
               });
+              toast.success("Interest charge added.");
               fetchLoans();
               if (expandedLoanId === loan._id) {
                 fetchRepayments(loan._id);
@@ -1418,110 +1420,42 @@ export default function Loan() {
                 );
               })
             )}
-          </View>
-        </ScrollView>
+            </View>
+          </ScrollView>
       )}
 
       {/* Modal: Add / Edit Loan */}
       <Modal visible={showLoanModal} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }}
+          <KeyboardAvoidingView
+            style={styles.modalContainer}
+            behavior={Platform.OS === "ios" ? "padding" : "position"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
           >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {selectedLoan ? "Edit Loan Account" : "Add Loan Account"}
-                </Text>
-                <TouchableOpacity onPress={() => setShowLoanModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                </TouchableOpacity>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {selectedLoan ? "Edit Loan Account" : "Add Loan Account"}
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowLoanModal(false)}>
+                    <Ionicons name="close-circle" size={24} color="#94a3b8" />
+                  </TouchableOpacity>
+                </View>
+
+                <LoanForm
+                  initialData={selectedLoan}
+                  onSubmit={submitLoanForm}
+                  onCancel={() => setShowLoanModal(false)}
+                />
               </View>
-
-              <LoanForm
-                initialData={selectedLoan}
-                onSubmit={submitLoanForm}
-                onCancel={() => setShowLoanModal(false)}
-              />
-
-              {false && (
-                <>
-                  <Text style={styles.inputLabel}>Lender Name</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={lenderInput}
-                    onChangeText={setLenderInput}
-                    placeholder="Lender name (e.g. Bank, Friend)"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>
-                    Loan Principal Amount ({currency})
-                  </Text>
-                  <TextInput
-                    style={styles.textInput}
-                    keyboardType="numeric"
-                    value={loanAmountInput}
-                    onChangeText={setLoanAmountInput}
-                    placeholder="Amount borrowed"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>
-                    Monthly Interest Rate (%)
-                  </Text>
-                  <TextInput
-                    style={styles.textInput}
-                    keyboardType="numeric"
-                    value={monthlyInterestInput}
-                    onChangeText={setMonthlyInterestInput}
-                    placeholder="Rate per month (e.g. 1.5)"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Start Date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={loanDateInput}
-                    onChangeText={setLoanDateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Description / Notes</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      { height: 80, textAlignVertical: "top" },
-                    ]}
-                    multiline={true}
-                    value={loanDescriptionInput}
-                    onChangeText={setLoanDescriptionInput}
-                    placeholder="Loan notes"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity
-                      style={styles.modalCancelBtn}
-                      onPress={() => setShowLoanModal(false)}
-                    >
-                      <Text style={styles.modalCancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.modalSubmitBtn,
-                        { backgroundColor: "#e11d48" },
-                      ]}
-                      onPress={handleSaveLoan}
-                    >
-                      <Text style={styles.modalSubmitBtnText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1557,89 +1491,6 @@ export default function Loan() {
                   onCancel={() => setShowRepaymentModal(false)}
                 />
               ) : null}
-
-              {false && (
-                <>
-                  <Text style={styles.inputLabel}>
-                    Repayment Date (YYYY-MM-DD)
-                  </Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={repaymentDateInput}
-                    onChangeText={setRepaymentDateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>
-                    Amount Paid ({currency})
-                  </Text>
-                  <TextInput
-                    style={styles.textInput}
-                    keyboardType="numeric"
-                    value={repaymentAmountInput}
-                    onChangeText={setRepaymentAmountInput}
-                    placeholder="Amount repaid"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Payment Method</Text>
-                  <View style={styles.statusButtonsRow}>
-                    {["Cash", "Card", "Bank Transfer", "UPI"].map((m) => (
-                      <TouchableOpacity
-                        key={m}
-                        style={[
-                          styles.statusSelectorBtn,
-                          repaymentMethodInput === m &&
-                            styles.statusSelectorBtnActive,
-                        ]}
-                        onPress={() => setRepaymentMethodInput(m)}
-                      >
-                        <Text
-                          style={[
-                            styles.statusSelectorBtnText,
-                            repaymentMethodInput === m &&
-                              styles.statusSelectorBtnTextActive,
-                          ]}
-                        >
-                          {m}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <Text style={styles.inputLabel}>Description / Notes</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      { height: 80, textAlignVertical: "top" },
-                    ]}
-                    multiline={true}
-                    value={repaymentDescriptionInput}
-                    onChangeText={setRepaymentDescriptionInput}
-                    placeholder="Repayment notes"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity
-                      style={styles.modalCancelBtn}
-                      onPress={() => setShowRepaymentModal(false)}
-                    >
-                      <Text style={styles.modalCancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.modalSubmitBtn,
-                        { backgroundColor: "#e11d48" },
-                      ]}
-                      onPress={handleSaveRepayment}
-                    >
-                      <Text style={styles.modalSubmitBtnText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
             </View>
           </ScrollView>
         </View>
@@ -1670,62 +1521,6 @@ export default function Loan() {
                 onSubmit={submitInterestForm}
                 onCancel={() => setShowInterestModal(false)}
               />
-
-              {false && (
-                <>
-                  <Text style={styles.inputLabel}>Date (YYYY-MM-DD)</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={interestDateInput}
-                    onChangeText={setInterestDateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>
-                    Interest Amount ({currency})
-                  </Text>
-                  <TextInput
-                    style={styles.textInput}
-                    keyboardType="numeric"
-                    value={interestAmountInput}
-                    onChangeText={setInterestAmountInput}
-                    placeholder="Interest amount to add"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <Text style={styles.inputLabel}>Notes / Description</Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      { height: 80, textAlignVertical: "top" },
-                    ]}
-                    multiline={true}
-                    value={interestDescriptionInput}
-                    onChangeText={setInterestDescriptionInput}
-                    placeholder="Interest reason"
-                    placeholderTextColor="#64748b"
-                  />
-
-                  <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity
-                      style={styles.modalCancelBtn}
-                      onPress={() => setShowInterestModal(false)}
-                    >
-                      <Text style={styles.modalCancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.modalSubmitBtn,
-                        { backgroundColor: "#e11d48" },
-                      ]}
-                      onPress={handleSaveInterest}
-                    >
-                      <Text style={styles.modalSubmitBtnText}>Add</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
             </View>
           </ScrollView>
         </View>
@@ -2179,6 +1974,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: "rgba(8, 20, 33, 0.6)",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "#172233",
