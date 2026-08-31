@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { api } from "../../api";
+import { api, syncLocalData } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { showAlertToast, toast } from "../../components/ui/Toast";
@@ -287,9 +287,10 @@ export default function Expenses() {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchExpenses();
+    await syncLocalData().catch(() => {});
+    await fetchExpenses();
   };
 
   const hasLoadedRef = React.useRef(false);

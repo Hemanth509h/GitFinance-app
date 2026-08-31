@@ -1,4 +1,11 @@
 import axios from "axios";
+import {
+  createLocalId,
+  enqueue,
+  getCached,
+  setCached,
+  syncPending,
+} from "./localData";
 import { getToken } from "./storage";
 
 const API_URL =
@@ -19,6 +26,109 @@ client.interceptors.request.use(async (config) => {
 
   return config;
 });
+
+type LocalCollection = "work-logs" | "expenses" | "loans";
+
+async function readCollection(collection: LocalCollection, request: () => Promise<any>) {
+  const cached = await getCached<any[]>(collection);
+  if (cached) return { data: cached };
+  const response = await request();
+  await setCached(collection, response.data ?? []);
+  return response;
+}
+
+async function mutateCollection(
+  collection: LocalCollection,
+  method: "post" | "patch" | "delete",
+  url: string,
+  data?: any,
+) {
+  const current = (await getCached<any[]>(collection)) ?? [];
+  const id = url.split("/").at(-1);
+  let responseData: any = data;
+  let localId: string | undefined;
+
+  if (method === "post") {
+    localId = createLocalId();
+    responseData = { ...data, _id: localId, createdAt: new Date().toISOString() };
+    await setCached(collection, [responseData, ...current]);
+  } else if (method === "patch") {
+    responseData = { ...(current.find((item) => item._id === id) ?? {}), ...data, _id: id };
+    await setCached(collection, current.map((item) => (item._id === id ? responseData : item)));
+  } else {
+    await setCached(collection, current.filter((item) => item._id !== id));
+    responseData = { message: "Deleted locally" };
+  }
+
+  await enqueue(method, url, data, localId);
+  // Sync is deliberately best-effort: a mutation has already been saved on-device.
+  void syncPending(client);
+  return { data: responseData };
+}
+
+async function cachedRequest(key: string, request: () => Promise<any>) {
+  const cached = await getCached<any>(key);
+  if (cached !== null) return { data: cached };
+  const response = await request();
+  await setCached(key, response.data);
+  return response;
+}
+
+async function mutateCachedList(
+  key: string,
+  method: "post" | "patch" | "delete",
+  url: string,
+  data?: any,
+) {
+  const current = (await getCached<any[]>(key)) ?? [];
+  const id = url.split("/").at(-1);
+  let responseData: any = data;
+  let localId: string | undefined;
+  if (method === "post") {
+    localId = createLocalId();
+    responseData = { ...data, _id: localId, createdAt: new Date().toISOString() };
+    await setCached(key, [responseData, ...current]);
+  } else if (method === "patch") {
+    responseData = { ...(current.find((item) => item._id === id) ?? {}), ...data, _id: id };
+    await setCached(key, current.map((item) => (item._id === id ? responseData : item)));
+  } else {
+    await setCached(key, current.filter((item) => item._id !== id));
+    responseData = { message: "Deleted locally" };
+  }
+  await enqueue(method, url, data, localId);
+  void syncPending(client);
+  return { data: responseData };
+}
+
+async function mutateCachedObject(key: string, url: string, data: any) {
+  const current = (await getCached<any>(key)) ?? {};
+  const next = { ...current, ...data };
+  await setCached(key, next);
+  await enqueue("patch", url, data);
+  void syncPending(client);
+  return { data: next };
+}
+
+export async function syncLocalData(): Promise<number> {
+  const synced = await syncPending(client);
+  const resources: [string, () => Promise<any>][] = [
+    ["work-logs", () => client.get("/work-logs")],
+    ["expenses", () => client.get("/expenses")],
+    ["loans", () => client.get("/loans")],
+    ["dashboard-summary", () => client.get("/dashboard/summary")],
+    ["dashboard-analytics", () => client.get("/dashboard/analytics")],
+    ["dashboard-clients", () => client.get("/dashboard/clients")],
+    ["dashboard-monthly-history", () => client.get("/dashboard/monthly-history")],
+    ["profile", () => client.get("/auth/me")],
+  ];
+  await Promise.all(
+    resources.map(async ([key, request]) => {
+      const response = await request();
+      await setCached(key, response.data ?? []);
+    }),
+  );
+  return synced;
+}
 
 export const api = {
   // ==================== Health ====================
@@ -54,72 +164,75 @@ export const api = {
     }),
 
   getMe: () =>
-    client.get("/auth/me"),
+    cachedRequest("profile", () => client.get("/auth/me")),
 
   updateProfile: (data: any) =>
-    client.patch("/auth/profile", data),
+    // Password changes still use this durable queue, but passwords are never cached.
+    data.password
+      ? client.patch("/auth/profile", data)
+      : mutateCachedObject("profile", "/auth/profile", data),
 
   // ==================== Dashboard ====================
   getDashboardSummary: () =>
-    client.get("/dashboard/summary"),
+    cachedRequest("dashboard-summary", () => client.get("/dashboard/summary")),
 
   getAnalytics: () =>
-    client.get("/dashboard/analytics"),
+    cachedRequest("dashboard-analytics", () => client.get("/dashboard/analytics")),
 
   getClientAnalytics: () =>
-    client.get("/dashboard/clients"),
+    cachedRequest("dashboard-clients", () => client.get("/dashboard/clients")),
 
   getMonthlyHistory: () =>
-    client.get("/dashboard/monthly-history"),
+    cachedRequest("dashboard-monthly-history", () => client.get("/dashboard/monthly-history")),
 
   // ==================== Work Logs ====================
   getWorkLogs: () =>
-    client.get("/work-logs"),
+    readCollection("work-logs", () => client.get("/work-logs")),
 
   createWorkLog: (data: any) =>
-    client.post("/work-logs", data),
+    mutateCollection("work-logs", "post", "/work-logs", data),
 
   updateWorkLog: (id: string | number, data: any) =>
-    client.patch(`/work-logs/${id}`, data),
+    mutateCollection("work-logs", "patch", `/work-logs/${id}`, data),
 
   deleteWorkLog: (id: string | number) =>
-    client.delete(`/work-logs/${id}`),
+    mutateCollection("work-logs", "delete", `/work-logs/${id}`),
 
   // ==================== Expenses ====================
   getExpenses: () =>
-    client.get("/expenses"),
+    readCollection("expenses", () => client.get("/expenses")),
 
   createExpense: (data: any) =>
-    client.post("/expenses", data),
+    mutateCollection("expenses", "post", "/expenses", data),
 
   updateExpense: (id: string | number, data: any) =>
-    client.patch(`/expenses/${id}`, data),
+    mutateCollection("expenses", "patch", `/expenses/${id}`, data),
 
   deleteExpense: (id: string | number) =>
-    client.delete(`/expenses/${id}`),
+    mutateCollection("expenses", "delete", `/expenses/${id}`),
 
   // ==================== Loans ====================
   getLoans: () =>
-    client.get("/loans"),
+    readCollection("loans", () => client.get("/loans")),
 
   createLoan: (data: any) =>
-    client.post("/loans", data),
+    mutateCollection("loans", "post", "/loans", data),
 
   updateLoan: (id: string | number, data: any) =>
-    client.patch(`/loans/${id}`, data),
+    mutateCollection("loans", "patch", `/loans/${id}`, data),
 
   deleteLoan: (id: string | number) =>
-    client.delete(`/loans/${id}`),
+    mutateCollection("loans", "delete", `/loans/${id}`),
 
   // ==================== Loan Repayments ====================
   getLoanRepayments: (loanId: string | number) =>
-    client.get(`/loans/${loanId}/repayments`),
+    cachedRequest(`loan-repayments:${loanId}`, () => client.get(`/loans/${loanId}/repayments`)),
 
   addLoanRepayment: (loanId: string | number, data: any) =>
-    client.post(`/loans/${loanId}/repayments`, data),
+    mutateCachedList(`loan-repayments:${loanId}`, "post", `/loans/${loanId}/repayments`, data),
 
   addLoanInterest: (loanId: string | number, data: any) =>
-    client.post(`/loans/${loanId}/repayments`, {
+    mutateCachedList(`loan-repayments:${loanId}`, "post", `/loans/${loanId}/repayments`, {
       ...data,
       type: "Interest",
     }),
@@ -129,26 +242,21 @@ export const api = {
     repaymentId: string | number,
     data: any,
   ) =>
-    client.patch(
+    mutateCachedList(
+      `loan-repayments:${loanId}`,
+      "patch",
       `/loans/${loanId}/repayments/${repaymentId}`,
-      data
+      data,
     ),
 
   deleteLoanRepayment: (
     loanId: string | number,
     repaymentId: string | number,
   ) =>
-    client.delete(
-      `/loans/${loanId}/repayments/${repaymentId}`
+    mutateCachedList(
+      `loan-repayments:${loanId}`,
+      "delete",
+      `/loans/${loanId}/repayments/${repaymentId}`,
     ),
-
-
-
-
-
-
-
-
-
 
 };

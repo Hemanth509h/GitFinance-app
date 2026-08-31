@@ -8,9 +8,6 @@
     "scheme": "gigfinances",
     "backgroundColor": "#081421",
     "userInterfaceStyle": "dark",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -27,11 +24,24 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/background.png",
+          "resizeMode": "cover",
+          "enableFullScreenImage_legacy": true,
+          "backgroundColor": "#081421"
+        }
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.hemanth509h.GitFinance"
     }
   }
 }

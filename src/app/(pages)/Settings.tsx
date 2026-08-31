@@ -13,7 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { api } from "../../api";
+import { api, syncLocalData } from "../../api";
 import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
 
@@ -109,6 +109,7 @@ export default function Settings() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
+      await syncLocalData();
       await refreshUser();
       toast.success("Settings refreshed from server.");
     } catch (error) {

@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { api } from "../../api";
+import { api, syncLocalData } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { showAlertToast, toast } from "../../components/ui/Toast";
@@ -545,9 +545,10 @@ export default function Loan() {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchLoans();
+    await syncLocalData().catch(() => {});
+    await fetchLoans();
     if (expandedLoanId) {
       fetchRepayments(expandedLoanId);
     }

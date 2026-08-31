@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { router } from 'expo-router';
-import { api } from '../api';
+import { api, syncLocalData } from '../api';
+import { clearLocalData } from '../api/localData';
 import { getToken, setToken, removeToken } from '../api/storage';
 
 interface User {
@@ -65,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (token) {
         await setToken(token);
         await fetchCurrentUser();
+        void syncLocalData().catch(() => {});
       } else {
         throw new Error("No token returned from login response.");
       }
@@ -84,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (token) {
         await setToken(token);
         await fetchCurrentUser();
+        void syncLocalData().catch(() => {});
       }
     } catch (err) {
       setUser(null);
@@ -103,6 +106,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore network errors on logout
     } finally {
       await removeToken();
+      // Cached finance data is user-specific; never expose it to the next login.
+      await clearLocalData();
       setLoading(false);
       try {
         await router.replace('/login');

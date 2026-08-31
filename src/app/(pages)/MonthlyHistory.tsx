@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { api } from "../../api";
+import { api, syncLocalData } from "../../api";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
@@ -60,9 +60,10 @@ export default function MonthlyHistory() {
     }, []),
   );
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchHistory();
+    await syncLocalData().catch(() => {});
+    await fetchHistory();
   };
 
   const formatCurrency = (amount: number) => {

@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { api } from "../../api";
+import { api, syncLocalData } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { useAuth } from "../../context/AuthContext";
@@ -174,9 +174,10 @@ export default function Dashboard() {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchData();
+    await syncLocalData().catch(() => {});
+    await fetchData();
   };
 
   const hasLoadedRef = React.useRef(false);

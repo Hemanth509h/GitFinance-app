@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { api } from "../../api";
+import { api, syncLocalData } from "../../api";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
@@ -181,9 +181,10 @@ export default function Payments() {
     }
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchLogs();
+    await syncLocalData().catch(() => {});
+    await fetchLogs();
   };
 
   const hasLoadedRef = React.useRef(false);
