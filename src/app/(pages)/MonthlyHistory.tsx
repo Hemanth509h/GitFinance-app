@@ -50,12 +50,8 @@ export default function MonthlyHistory() {
     }
   };
 
-  const hasLoadedRef = React.useRef(false);
-
   useFocusEffect(
     React.useCallback(() => {
-      if (hasLoadedRef.current) return;
-      hasLoadedRef.current = true;
       fetchHistory();
     }, []),
   );

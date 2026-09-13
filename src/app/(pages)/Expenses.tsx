@@ -5,7 +5,6 @@ import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -293,12 +292,8 @@ export default function Expenses() {
     await fetchExpenses();
   };
 
-  const hasLoadedRef = React.useRef(false);
-
   useFocusEffect(
     React.useCallback(() => {
-      if (hasLoadedRef.current) return;
-      hasLoadedRef.current = true;
       fetchExpenses();
     }, []),
   );
@@ -781,14 +776,13 @@ export default function Expenses() {
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
             style={styles.modalContainer}
-            behavior={Platform.OS === "ios" ? "padding" : "position"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+            behavior="padding"
           >
             <ScrollView
               contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+              automaticallyAdjustKeyboardInsets
             >
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>

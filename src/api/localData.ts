@@ -2,7 +2,9 @@ import * as SQLite from "expo-sqlite";
 import { Platform } from "react-native";
 import type { AxiosInstance } from "axios";
 
-type CachedRow = { value: string };
+type CachedRow = { value: string; updated_at: number };
+/** Cached data is considered stale after 5 minutes. */
+const CACHE_TTL_MS = 5 * 60 * 1000;
 type OutboxRow = {
   id: number;
   method: "post" | "patch" | "delete";
@@ -44,18 +46,33 @@ async function database() {
 /** Cached API responses are application data; authentication remains in SecureStore. */
 export async function getCached<T>(key: string): Promise<T | null> {
   if (Platform.OS === "web") {
-    const value = globalThis.localStorage?.getItem(`${WEB_PREFIX}${key}`);
-    return value ? (JSON.parse(value) as T) : null;
+    const raw = globalThis.localStorage?.getItem(`${WEB_PREFIX}${key}`);
+    if (!raw) return null;
+    try {
+      const parsed: { value: T; updatedAt: number } = JSON.parse(raw);
+      if (Date.now() - parsed.updatedAt > CACHE_TTL_MS) return null;
+      return parsed.value;
+    } catch {
+      return null;
+    }
   }
   const db = await database();
-  const row = await db.getFirstAsync<CachedRow>("SELECT value FROM cache WHERE key = ?", key);
-  return row ? (JSON.parse(row.value) as T) : null;
+  const row = await db.getFirstAsync<CachedRow>(
+    "SELECT value, updated_at FROM cache WHERE key = ?",
+    key,
+  );
+  if (!row) return null;
+  if (Date.now() - row.updated_at > CACHE_TTL_MS) return null;
+  return JSON.parse(row.value) as T;
 }
 
 export async function setCached<T>(key: string, value: T): Promise<void> {
   const serialized = JSON.stringify(value);
   if (Platform.OS === "web") {
-    globalThis.localStorage?.setItem(`${WEB_PREFIX}${key}`, serialized);
+    globalThis.localStorage?.setItem(
+      `${WEB_PREFIX}${key}`,
+      JSON.stringify({ value, updatedAt: Date.now() }),
+    );
     return;
   }
   const db = await database();
@@ -65,6 +82,16 @@ export async function setCached<T>(key: string, value: T): Promise<void> {
     serialized,
     Date.now(),
   );
+}
+
+/** Remove a key from cache so the next read forces a fresh server fetch. */
+export async function invalidateCache(key: string): Promise<void> {
+  if (Platform.OS === "web") {
+    globalThis.localStorage?.removeItem(`${WEB_PREFIX}${key}`);
+    return;
+  }
+  const db = await database();
+  await db.runAsync("DELETE FROM cache WHERE key = ?", key);
 }
 
 export async function clearLocalData(): Promise<void> {

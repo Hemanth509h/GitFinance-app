@@ -86,14 +86,11 @@ export default function Settings() {
     }
   };
 
-  const hasLoadedRef = React.useRef(false);
-
   useFocusEffect(
     React.useCallback(() => {
-      if (hasLoadedRef.current) return;
-      hasLoadedRef.current = true;
       checkServerHealth();
-    }, []),
+      void refreshUser();
+    }, [refreshUser]),
   );
 
   // Sync fields with user context changes

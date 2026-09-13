@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -187,12 +186,8 @@ export default function Payments() {
     await fetchLogs();
   };
 
-  const hasLoadedRef = React.useRef(false);
-
   useFocusEffect(
     React.useCallback(() => {
-      if (hasLoadedRef.current) return;
-      hasLoadedRef.current = true;
       fetchLogs();
     }, []),
   );
@@ -983,14 +978,13 @@ export default function Payments() {
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
             style={styles.modalContainer}
-            behavior={Platform.OS === "ios" ? "padding" : "position"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+            behavior="padding"
           >
             <ScrollView
               contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+              automaticallyAdjustKeyboardInsets
             >
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
@@ -1018,10 +1012,16 @@ export default function Payments() {
         animationType="slide"
       >
         <View style={styles.modalOverlay}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }}
+          <KeyboardAvoidingView
+            style={styles.modalContainer}
+            behavior="padding"
           >
-            <View style={styles.modalContent}>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+            >
+              <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Work Entry</Text>
                 <TouchableOpacity onPress={() => setShowWorkEntryModal(false)}>
@@ -1112,8 +1112,9 @@ export default function Payments() {
                   <Text style={styles.modalSubmitBtnText}>Save</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </ScrollView>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>

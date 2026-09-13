@@ -1,12 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -80,6 +79,41 @@ function FormChoices({
           </Text>
         </TouchableOpacity>
       ))}
+    </View>
+  );
+}
+type LoanGroupBy = "All" | "Active" | "Repaid" | "By Lender";
+
+function GroupBySelector({
+  value,
+  onChange,
+}: {
+  value: LoanGroupBy;
+  onChange: (value: LoanGroupBy) => void;
+}) {
+  return (
+    <View style={formStyles.choices}>
+      {(["All", "Active", "Repaid", "By Lender"] as LoanGroupBy[]).map(
+        (option) => (
+          <TouchableOpacity
+            key={option}
+            onPress={() => onChange(option)}
+            style={[
+              formStyles.choice,
+              value === option && formStyles.choiceActive,
+            ]}
+          >
+            <Text
+              style={[
+                formStyles.choiceText,
+                value === option && formStyles.choiceTextActive,
+              ]}
+            >
+              {option}
+            </Text>
+          </TouchableOpacity>
+        ),
+      )}
     </View>
   );
 }
@@ -234,12 +268,8 @@ function RepaymentForm({
       Number(loan?.amountPaid || 0) +
       Number(initialData?.amount || 0),
   );
-  const hasLoadedRef = React.useRef(false);
-
   useFocusEffect(
     React.useCallback(() => {
-      if (hasLoadedRef.current) return;
-      hasLoadedRef.current = true;
       let isMounted = true;
       api
         .getWorkLogs()
@@ -487,6 +517,7 @@ export default function Loan() {
   const [loans, setLoans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [groupBy, setGroupBy] = useState<LoanGroupBy>("All");
 
   // Expanded states
   const [expandedLoanId, setExpandedLoanId] = useState<string | null>(null);
@@ -578,9 +609,11 @@ export default function Loan() {
     }
   };
 
-  useEffect(() => {
-    fetchLoans();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchLoans();
+    }, []),
+  );
 
   // Summary calculations
   const totalBorrowed = loans.reduce(
@@ -606,6 +639,38 @@ export default function Loan() {
   );
   const progressPercent =
     totalCalculatedOwed > 0 ? (totalPaid / totalCalculatedOwed) * 100 : 0;
+
+  const getLoanStatus = (loan: any) =>
+    loan.status === "Repaid" ||
+    Math.max(
+      0,
+      Number(loan.totalAmount || 0) - Number(loan.amountPaid || 0),
+    ) === 0
+      ? "Repaid"
+      : "Active";
+
+  const getGroupedLoans = () => {
+    if (groupBy === "All") return [{ label: "All", items: loans }];
+
+    if (groupBy === "Active" || groupBy === "Repaid") {
+      return [
+        {
+          label: groupBy,
+          items: loans.filter((loan) => getLoanStatus(loan) === groupBy),
+        },
+      ];
+    }
+
+    const byLender = loans.reduce<Record<string, any[]>>((groups, loan) => {
+      const lender = String(loan.lenderName || "Unknown lender").trim();
+      (groups[lender] ??= []).push(loan);
+      return groups;
+    }, {});
+
+    return Object.entries(byLender)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([label, items]) => ({ label, items }));
+  };
 
   // Grouping helper for repayments list
   const groupRepayments = (repaymentList: any[]) => {
@@ -993,8 +1058,10 @@ export default function Loan() {
           {/* Section Header */}
           <View style={styles.sectionHeader}>
             <Ionicons name="business-outline" size={16} color="#94a3b8" />
-            <Text style={styles.sectionTitle}>Active Loan Accounts</Text>
+            <Text style={styles.sectionTitle}>Loan Accounts</Text>
           </View>
+
+          <GroupBySelector value={groupBy} onChange={setGroupBy} />
 
           {/* Loans Cards List */}
           <View style={styles.listContainer}>
@@ -1005,7 +1072,19 @@ export default function Loan() {
                 </Text>
               </View>
             ) : (
-              loans.map((loan) => {
+              getGroupedLoans().map((section) => (
+                <React.Fragment key={section.label}>
+                  {groupBy !== "All" && (
+                    <View style={styles.loanGroupHeader}>
+                      <Text style={styles.loanGroupTitle}>
+                        {section.label}
+                      </Text>
+                      <Text style={styles.loanGroupCount}>
+                        {section.items.length}
+                      </Text>
+                    </View>
+                  )}
+                  {section.items.map((loan) => {
                 const isExpanded = expandedLoanId === loan._id;
                 const remaining = Math.max(
                   0,
@@ -1034,7 +1113,7 @@ export default function Loan() {
                   return `${day} ${month} ${year}`;
                 };
 
-                return (
+                    return (
                   <View key={loan._id} style={styles.newLoanCard}>
                     {/* Gradient Header Banner */}
                     <LinearGradient
@@ -1418,8 +1497,10 @@ export default function Loan() {
                       )}
                     </View>
                   </View>
-                );
-              })
+                    );
+                  })}
+                </React.Fragment>
+              ))
             )}
             </View>
           </ScrollView>
@@ -1430,14 +1511,13 @@ export default function Loan() {
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
             style={styles.modalContainer}
-            behavior={Platform.OS === "ios" ? "padding" : "position"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+            behavior="padding"
           >
             <ScrollView
               contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+              automaticallyAdjustKeyboardInsets
             >
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
@@ -1467,10 +1547,16 @@ export default function Loan() {
         animationType="slide"
       >
         <View style={styles.modalOverlay}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }}
+          <KeyboardAvoidingView
+            style={styles.modalContainer}
+            behavior="padding"
           >
-            <View style={styles.modalContent}>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+            >
+              <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {editingRepayment ? "Edit Repayment" : "Record Repayment"}
@@ -1492,8 +1578,9 @@ export default function Loan() {
                   onCancel={() => setShowRepaymentModal(false)}
                 />
               ) : null}
-            </View>
-          </ScrollView>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1504,10 +1591,16 @@ export default function Loan() {
         animationType="slide"
       >
         <View style={styles.modalOverlay}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }}
+          <KeyboardAvoidingView
+            style={styles.modalContainer}
+            behavior="padding"
           >
-            <View style={styles.modalContent}>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
+            >
+              <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Interest Charge</Text>
                 <Text style={styles.modalHeaderSubtitle}>
@@ -1522,8 +1615,9 @@ export default function Loan() {
                 onSubmit={submitInterestForm}
                 onCancel={() => setShowInterestModal(false)}
               />
-            </View>
-          </ScrollView>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1715,6 +1809,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#ffffff",
+  },
+  loanGroupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#2b3a4e",
+    paddingBottom: 8,
+    marginTop: 4,
+  },
+  loanGroupTitle: {
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  loanGroupCount: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "600",
   },
   listContainer: {
     flexDirection: "column",

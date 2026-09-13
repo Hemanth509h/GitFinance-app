@@ -28,10 +28,14 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/background.png",
-          "resizeMode": "cover",
-          "enableFullScreenImage_legacy": true,
-          "backgroundColor": "#081421"
+          "image": "./assets/images/logo.png",
+          "imageWidth": 150,
+          "resizeMode": "contain",
+          "backgroundColor": "#081421",
+          "dark": {
+            "image": "./assets/images/logo.png",
+            "backgroundColor": "#081421"
+          }
         }
       ],
       "expo-sqlite"

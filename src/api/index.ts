@@ -3,6 +3,7 @@ import {
   createLocalId,
   enqueue,
   getCached,
+  invalidateCache,
   setCached,
   syncPending,
 } from "./localData";
@@ -31,10 +32,22 @@ type LocalCollection = "work-logs" | "expenses" | "loans";
 
 async function readCollection(collection: LocalCollection, request: () => Promise<any>) {
   const cached = await getCached<any[]>(collection);
-  if (cached) return { data: cached };
+  if (cached !== null) return { data: cached };
   const response = await request();
   await setCached(collection, response.data ?? []);
   return response;
+}
+
+/** Keys that aggregate data across collections — always stale after a mutation. */
+const DASHBOARD_KEYS = [
+  "dashboard-summary",
+  "dashboard-analytics",
+  "dashboard-clients",
+  "dashboard-monthly-history",
+];
+
+async function invalidateDashboard() {
+  await Promise.all(DASHBOARD_KEYS.map(invalidateCache));
 }
 
 async function mutateCollection(
@@ -61,6 +74,8 @@ async function mutateCollection(
   }
 
   await enqueue(method, url, data, localId);
+  // Invalidate aggregated caches so dashboard reflects changes immediately.
+  void invalidateDashboard();
   // Sync is deliberately best-effort: a mutation has already been saved on-device.
   void syncPending(client);
   return { data: responseData };
@@ -71,6 +86,17 @@ async function cachedRequest(key: string, request: () => Promise<any>) {
   if (cached !== null) return { data: cached };
   const response = await request();
   await setCached(key, response.data);
+  return response;
+}
+
+/** Fetch a resource from the server, bypassing its local cache. */
+export async function refreshCollection(
+  key: string,
+  request: () => Promise<any>,
+) {
+  await invalidateCache(key);
+  const response = await request();
+  await setCached(key, response.data ?? []);
   return response;
 }
 
@@ -96,6 +122,10 @@ async function mutateCachedList(
     responseData = { message: "Deleted locally" };
   }
   await enqueue(method, url, data, localId);
+  void invalidateDashboard();
+  if (key.startsWith("loan-repayments:")) {
+    void invalidateCache("loans");
+  }
   void syncPending(client);
   return { data: responseData };
 }
@@ -123,8 +153,7 @@ export async function syncLocalData(): Promise<number> {
   ];
   await Promise.all(
     resources.map(async ([key, request]) => {
-      const response = await request();
-      await setCached(key, response.data ?? []);
+      await refreshCollection(key, request);
     }),
   );
   return synced;
