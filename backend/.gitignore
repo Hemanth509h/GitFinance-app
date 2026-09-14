@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# compiled TypeScript output
+dist/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# debug / logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+*.log
+
+# typescript
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# local Mongo / temp
+*.tmp
+coverage/

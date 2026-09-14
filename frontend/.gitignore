@@ -1,0 +1,37 @@
+# dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+build/
+.vercel/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# debug / logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+*.log
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# APK release artifact (copy in locally for downloads)
+public/gig-finances.apk
+*.apk
+
+# testing / coverage
+coverage/
+.turbo/
