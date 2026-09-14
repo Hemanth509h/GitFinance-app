@@ -1,13 +1,27 @@
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { AppState } from "react-native";
-import { syncLocalData } from "../api";
+import { onDataSynced, syncLocalData } from "../api";
 import ServerHealth from "../components/ServerHealth";
-import { ToastProvider } from "../components/ui/Toast";
+import { ToastProvider, toast } from "../components/ui/Toast";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 
 function LocalSync() {
   const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    return onDataSynced(({ synced, updated }) => {
+      if (synced > 0) {
+        toast.success(
+          synced === 1
+            ? "1 offline change synced to server."
+            : `${synced} offline changes synced to server.`,
+        );
+      } else if (updated) {
+        toast.info("Data updated from server.");
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;

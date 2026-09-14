@@ -3,8 +3,6 @@ import { Platform } from "react-native";
 import type { AxiosInstance } from "axios";
 
 type CachedRow = { value: string; updated_at: number };
-/** Cached data is considered stale after 5 minutes. */
-const CACHE_TTL_MS = 5 * 60 * 1000;
 type OutboxRow = {
   id: number;
   method: "post" | "patch" | "delete";
@@ -17,6 +15,28 @@ const DATABASE_NAME = "gig-finance.db";
 const WEB_PREFIX = "gig-finance:";
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
 let activeSync: Promise<number> | undefined;
+
+type SyncResult = { synced: number; updated: boolean };
+type SyncListener = (result: SyncResult) => void;
+const syncListeners = new Set<SyncListener>();
+
+/** Subscribe to completed server→local syncs so screens can refresh UI. */
+export function onDataSynced(listener: SyncListener): () => void {
+  syncListeners.add(listener);
+  return () => {
+    syncListeners.delete(listener);
+  };
+}
+
+export function notifyDataSynced(result: SyncResult): void {
+  syncListeners.forEach((listener) => {
+    try {
+      listener(result);
+    } catch {
+      // Listener errors must not break sync.
+    }
+  });
+}
 
 async function database() {
   if (!databasePromise) {
@@ -43,14 +63,16 @@ async function database() {
   return databasePromise;
 }
 
-/** Cached API responses are application data; authentication remains in SecureStore. */
+/** Cached API responses are application data; authentication remains in SecureStore.
+ * Always returns stored data when present (stale-while-revalidate) so UI never blocks
+ * waiting on the network after a background sync.
+ */
 export async function getCached<T>(key: string): Promise<T | null> {
   if (Platform.OS === "web") {
     const raw = globalThis.localStorage?.getItem(`${WEB_PREFIX}${key}`);
     if (!raw) return null;
     try {
       const parsed: { value: T; updatedAt: number } = JSON.parse(raw);
-      if (Date.now() - parsed.updatedAt > CACHE_TTL_MS) return null;
       return parsed.value;
     } catch {
       return null;
@@ -62,7 +84,6 @@ export async function getCached<T>(key: string): Promise<T | null> {
     key,
   );
   if (!row) return null;
-  if (Date.now() - row.updated_at > CACHE_TTL_MS) return null;
   return JSON.parse(row.value) as T;
 }
 
@@ -153,6 +174,67 @@ async function removeOutboxItem(id: number): Promise<void> {
   await db.runAsync("DELETE FROM outbox WHERE id = ?", id);
 }
 
+export async function updateItemWithServerResponse(
+  url: string,
+  remoteData: any,
+  localId?: string | null,
+): Promise<void> {
+  const collections: { key: string; match: string }[] = [
+    { key: "work-logs", match: "work-logs" },
+    { key: "expenses", match: "expenses" },
+    { key: "loans", match: "loans" },
+  ];
+
+  for (const { key, match } of collections) {
+    if (url.includes(match)) {
+      const items = await getCached<any[]>(key);
+      if (!items) continue;
+
+      let updated = false;
+      const targetId = remoteData?._id || remoteData?.id;
+      const next = items.map((item) => {
+        if (localId && item?._id === localId) {
+          updated = true;
+          return { ...item, ...remoteData, _id: targetId || localId };
+        }
+        if (targetId && item?._id === targetId) {
+          updated = true;
+          return { ...item, ...remoteData };
+        }
+        return item;
+      });
+
+      if (updated) {
+        await setCached(key, next);
+      }
+    }
+  }
+
+  // Also check loan repayments
+  if (url.includes("repayments")) {
+    const parts = url.split("/");
+    const loanIdx = parts.indexOf("loans");
+    if (loanIdx !== -1 && parts[loanIdx + 1]) {
+      const loanId = parts[loanIdx + 1];
+      const repayKey = `loan-repayments:${loanId}`;
+      const items = await getCached<any[]>(repayKey);
+      if (items) {
+        const targetId = remoteData?._id || remoteData?.id;
+        const next = items.map((item) => {
+          if (localId && item?._id === localId) {
+            return { ...item, ...remoteData, _id: targetId || localId };
+          }
+          if (targetId && item?._id === targetId) {
+            return { ...item, ...remoteData };
+          }
+          return item;
+        });
+        await setCached(repayKey, next);
+      }
+    }
+  }
+}
+
 async function replaceLocalId(localId: string, remoteId: string): Promise<void> {
   const keys = ["work-logs", "expenses", "loans"];
   for (const key of keys) {
@@ -185,9 +267,14 @@ export function syncPending(client: AxiosInstance): Promise<number> {
           url: item.url,
           data: item.body ? JSON.parse(item.body) : undefined,
         });
-        if (item.method === "post" && item.localId && response.data?._id) {
-          await replaceLocalId(item.localId, response.data._id);
+
+        if (response.data) {
+          if (item.method === "post" && item.localId && response.data?._id) {
+            await replaceLocalId(item.localId, response.data._id);
+          }
+          await updateItemWithServerResponse(item.url, response.data, item.localId);
         }
+
         await removeOutboxItem(item.id);
         synced += 1;
       } catch {

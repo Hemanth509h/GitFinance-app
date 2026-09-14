@@ -4,18 +4,28 @@ import {
   enqueue,
   getCached,
   invalidateCache,
+  notifyDataSynced,
+  onDataSynced,
   setCached,
   syncPending,
 } from "./localData";
 import { getToken } from "./storage";
 
+export { onDataSynced };
+
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
   "http://127.0.0.1:3000";
 
+/** Bound every request so pages cannot spin forever when the server stalls. */
+const REQUEST_TIMEOUT_MS = 12_000;
+
 export const client = axios.create({
   baseURL: `${API_URL}/api`,
+  timeout: REQUEST_TIMEOUT_MS,
 });
+
+let activeFullSync: Promise<number> | undefined;
 
 // Add JWT token automatically
 client.interceptors.request.use(async (config) => {
@@ -32,10 +42,32 @@ type LocalCollection = "work-logs" | "expenses" | "loans";
 
 async function readCollection(collection: LocalCollection, request: () => Promise<any>) {
   const cached = await getCached<any[]>(collection);
-  if (cached !== null) return { data: cached };
-  const response = await request();
-  await setCached(collection, response.data ?? []);
-  return response;
+
+  // Background fetch to keep SQLite updated with server changes
+  const fetchFresh = async () => {
+    try {
+      const response = await request();
+      if (response && response.data !== undefined) {
+        await setCached(collection, response.data ?? []);
+      }
+    } catch {
+      // Offline or network error; keep SQLite cache intact
+    }
+  };
+
+  if (cached !== null) {
+    void fetchFresh();
+    return { data: cached };
+  }
+
+  try {
+    const response = await request();
+    await setCached(collection, response.data ?? []);
+    return response;
+  } catch (error) {
+    // If initial fetch fails offline, return empty list gracefully
+    return { data: [] };
+  }
 }
 
 /** Keys that aggregate data across collections — always stale after a mutation. */
@@ -83,21 +115,55 @@ async function mutateCollection(
 
 async function cachedRequest(key: string, request: () => Promise<any>) {
   const cached = await getCached<any>(key);
-  if (cached !== null) return { data: cached };
-  const response = await request();
-  await setCached(key, response.data);
-  return response;
+
+  const fetchFresh = async () => {
+    try {
+      const response = await request();
+      if (response && response.data !== undefined) {
+        await setCached(key, response.data);
+      }
+    } catch {
+      // Offline; keep SQLite cache intact
+    }
+  };
+
+  if (cached !== null) {
+    void fetchFresh();
+    return { data: cached };
+  }
+
+  try {
+    const response = await request();
+    await setCached(key, response.data);
+    return response;
+  } catch (error) {
+    return { data: null };
+  }
 }
 
-/** Fetch a resource from the server, bypassing its local cache. */
+/**
+ * Pull fresh data from the server into SQLite without wiping the existing cache
+ * first. Keeps the app usable if the request fails or times out.
+ */
 export async function refreshCollection(
   key: string,
   request: () => Promise<any>,
-) {
-  await invalidateCache(key);
-  const response = await request();
-  await setCached(key, response.data ?? []);
-  return response;
+): Promise<{ data: any; changed: boolean }> {
+  const previous = await getCached<any>(key);
+  try {
+    const response = await request();
+    const next = response.data ?? (Array.isArray(previous) ? [] : previous);
+    const changed =
+      JSON.stringify(previous ?? null) !== JSON.stringify(next ?? null);
+    await setCached(key, next);
+    return { data: next, changed };
+  } catch (error) {
+    // Keep whatever is already on-device; never leave the key empty mid-sync.
+    if (previous !== null) {
+      return { data: previous, changed: false };
+    }
+    throw error;
+  }
 }
 
 async function mutateCachedList(
@@ -140,23 +206,39 @@ async function mutateCachedObject(key: string, url: string, data: any) {
 }
 
 export async function syncLocalData(): Promise<number> {
-  const synced = await syncPending(client);
-  const resources: [string, () => Promise<any>][] = [
-    ["work-logs", () => client.get("/work-logs")],
-    ["expenses", () => client.get("/expenses")],
-    ["loans", () => client.get("/loans")],
-    ["dashboard-summary", () => client.get("/dashboard/summary")],
-    ["dashboard-analytics", () => client.get("/dashboard/analytics")],
-    ["dashboard-clients", () => client.get("/dashboard/clients")],
-    ["dashboard-monthly-history", () => client.get("/dashboard/monthly-history")],
-    ["profile", () => client.get("/auth/me")],
-  ];
-  await Promise.all(
-    resources.map(async ([key, request]) => {
-      await refreshCollection(key, request);
-    }),
-  );
-  return synced;
+  if (activeFullSync) return activeFullSync;
+
+  activeFullSync = (async () => {
+    const synced = await syncPending(client);
+    const resources: [string, () => Promise<any>][] = [
+      ["work-logs", () => client.get("/work-logs")],
+      ["expenses", () => client.get("/expenses")],
+      ["loans", () => client.get("/loans")],
+      ["dashboard-summary", () => client.get("/dashboard/summary")],
+      ["dashboard-analytics", () => client.get("/dashboard/analytics")],
+      ["dashboard-clients", () => client.get("/dashboard/clients")],
+      [
+        "dashboard-monthly-history",
+        () => client.get("/dashboard/monthly-history"),
+      ],
+      ["profile", () => client.get("/auth/me")],
+    ];
+
+    const results = await Promise.allSettled(
+      resources.map(async ([key, request]) => refreshCollection(key, request)),
+    );
+
+    const updated = results.some(
+      (result) => result.status === "fulfilled" && result.value.changed,
+    );
+
+    notifyDataSynced({ synced, updated: updated || synced > 0 });
+    return synced;
+  })();
+
+  return activeFullSync.finally(() => {
+    activeFullSync = undefined;
+  });
 }
 
 export const api = {
