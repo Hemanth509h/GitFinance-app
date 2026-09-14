@@ -1,6 +1,5 @@
 import express from "express";
 
-import { protect } from "../middleware/auth.js";
 import Expense from "../models/Expense.js";
 import Loan from "../models/Loan.js";
 import Repayment from "../models/Repayment.js";
@@ -8,23 +7,11 @@ import WorkEntry from "../models/WorkEntry.js";
 import { errorMessage } from "../utils/errors.js";
 
 const router = express.Router();
-router.use(protect);
 
 const getMonthRange = (date = new Date()) => ({
   start: new Date(date.getFullYear(), date.getMonth(), 1),
   end: new Date(date.getFullYear(), date.getMonth() + 1, 1),
 });
-const getMonthKey = (date: Date | string) => {
-  const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
-const getMonthLabel = (key: string) => {
-  const [year, month] = key.split("-").map(Number);
-  return new Date(year, month - 1, 1).toLocaleString("default", {
-    month: "long",
-    year: "numeric",
-  });
-};
 
 router.get("/summary", async (req, res) => {
   try {
@@ -130,63 +117,6 @@ router.get("/summary", async (req, res) => {
   }
 });
 
-router.get("/monthly-history", async (req, res) => {
-  try {
-    const userId = req.user!._id,
-      loanIds = (await Loan.find({ userId }).select("_id")).map(
-        (loan) => loan._id,
-      );
-    const [entries, repayments, expenses] = await Promise.all([
-      WorkEntry.find({ userId }).sort({ date: -1 }),
-      Repayment.find({ loanId: { $in: loanIds } }).sort({ date: -1 }),
-      Expense.find({ userId }).sort({ date: -1 }),
-    ]);
-    const months: Record<string, any> = {};
-    const month = (date: Date) => {
-      const key = getMonthKey(date);
-      return (months[key] ??= {
-        month: key,
-        label: getMonthLabel(key),
-        expectedEarnings: 0,
-        earned: 0,
-        pending: 0,
-        workCount: 0,
-        repaymentTotal: 0,
-        repaymentCount: 0,
-        expenseTotal: 0,
-        expenseCount: 0,
-      });
-    };
-    entries.forEach((entry) => {
-      const bucket = month(entry.date),
-        amount = Number(entry.amount || 0),
-        paid = entry.status === "Paid" ? amount : Number(entry.amountPaid || 0);
-      bucket.expectedEarnings += amount;
-      bucket.earned += paid;
-      bucket.pending += Math.max(0, amount - paid);
-      bucket.workCount++;
-    });
-    repayments.forEach((item) => {
-      if (item.status && item.status !== "Success") return;
-      const bucket = month(item.date);
-      bucket.repaymentTotal += Number(item.amount || 0);
-      bucket.repaymentCount++;
-    });
-    expenses.forEach((item) => {
-      const bucket = month(item.date);
-      bucket.expenseTotal += Number(item.amount || 0);
-      bucket.expenseCount++;
-    });
-    res.json(
-      Object.values(months).sort((a: any, b: any) =>
-        b.month.localeCompare(a.month),
-      ),
-    );
-  } catch (error) {
-    res.status(500).json({ message: errorMessage(error) });
-  }
-});
-
 router.get("/analytics", async (req, res) => {
   try {
     const userId = req.user!._id,
@@ -251,32 +181,4 @@ router.get("/analytics", async (req, res) => {
   }
 });
 
-router.get("/clients", async (req, res) => {
-  try {
-    const entries = await WorkEntry.find({ userId: req.user!._id }),
-      clients: Record<string, any> = {};
-    entries.forEach((entry) => {
-      const bucket = (clients[entry.client] ??= {
-        name: entry.client,
-        totalEarned: 0,
-        pendingAmount: 0,
-        workCount: 0,
-        lastWorkDate: entry.date,
-      });
-      const earned =
-        entry.status === "Paid" ? entry.amount : entry.amountPaid || 0;
-      bucket.totalEarned += earned;
-      bucket.pendingAmount += entry.amount - earned;
-      bucket.workCount++;
-      if (entry.date > bucket.lastWorkDate) bucket.lastWorkDate = entry.date;
-    });
-    res.json(
-      Object.values(clients).sort(
-        (a: any, b: any) => b.totalEarned - a.totalEarned,
-      ),
-    );
-  } catch (error) {
-    res.status(500).json({ message: errorMessage(error) });
-  }
-});
 export default router;

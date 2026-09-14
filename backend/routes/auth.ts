@@ -1,10 +1,11 @@
 import express from "express";
 
-import { generateToken, protect } from "../middleware/auth.js";
+import { generateToken } from "../middleware/auth.js";
 import User from "../models/User.js";
 import { errorMessage } from "../utils/errors.js";
 
 const router = express.Router();
+
 const userPayload = (user: InstanceType<typeof User>) => ({
   _id: user._id,
   email: user.email,
@@ -55,46 +56,25 @@ router.post("/login", async (req, res) => {
 router.post("/logout", (_req, res) =>
   res.json({ message: "Logged out successfully." }),
 );
+
 router.post("/forgot-password", async (req, res) => {
   if (!req.body.email)
     return res.status(400).json({ message: "Email is required." });
   try {
+    // Always return the same message to avoid email enumeration.
     await User.findOne({ email: req.body.email });
     res.json({
       message:
-        "If an account exists for this email, you can now reset your password from the reset page.",
+        "If an account exists for this email, password reset instructions will be sent.",
     });
   } catch (error) {
     res.status(500).json({ message: errorMessage(error) });
   }
 });
-router.post("/reset-password", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password)
-    return res
-      .status(400)
-      .json({ message: "Email and new password are required." });
-  if (password.length < 6)
-    return res
-      .status(400)
-      .json({ message: "Password must be at least 6 characters." });
-  try {
-    const user = await User.findOne({ email });
-    if (!user)
-      return res
-        .status(404)
-        .json({ message: "No account found for this email." });
-    user.password = password;
-    await user.save();
-    res.json({
-      message: "Your password has been reset successfully. Please sign in.",
-    });
-  } catch (error) {
-    res.status(500).json({ message: errorMessage(error) });
-  }
-});
-router.get("/me", protect, (req, res) => res.json(userPayload(req.user!)));
-router.patch("/profile", protect, async (req, res) => {
+
+router.get("/me", (req, res) => res.json(userPayload(req.user!)));
+
+router.patch("/profile", async (req, res) => {
   const { name, currency, monthlyGoal, theme, password, currentPassword } =
     req.body;
   try {

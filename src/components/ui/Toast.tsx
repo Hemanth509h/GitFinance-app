@@ -1,21 +1,11 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Alert as NativeAlert, Animated, StyleSheet, Text } from "react-native";
 
 type ToastKind = "success" | "error" | "info";
 
-type ToastContextValue = {
-  show: (message: string, kind?: ToastKind) => void;
-};
-
-const ToastContext = createContext<ToastContextValue | undefined>(undefined);
-
-let showGlobalToast: ToastContextValue["show"] | undefined;
+let showGlobalToast:
+  | ((message: string, kind?: ToastKind) => void)
+  | undefined;
 
 export const toast = {
   success: (message: string) => showGlobalToast?.(message, "success"),
@@ -67,23 +57,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   showGlobalToast = show;
 
   return (
-    <ToastContext.Provider value={{ show }}>
+    <>
       {children}
       {current ? (
         <Animated.View
-          style={[styles.container, styles[current.kind], { opacity, pointerEvents: 'none' }]}
+          style={[
+            styles.container,
+            styles[current.kind],
+            { opacity, pointerEvents: "none" },
+          ]}
         >
           <Text style={styles.text}>{current.message}</Text>
         </Animated.View>
       ) : null}
-    </ToastContext.Provider>
+    </>
   );
-}
-
-export function useToast() {
-  const context = useContext(ToastContext);
-  if (!context) throw new Error("useToast must be used within ToastProvider");
-  return context;
 }
 
 const styles = StyleSheet.create({
@@ -94,16 +82,16 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 9999,
     borderRadius: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    paddingVertical: 13,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 8,
   },
-  success: { backgroundColor: "#047857" },
-  error: { backgroundColor: "#b91c1c" },
-  info: { backgroundColor: "#1d4ed8" },
-  text: { color: "#fff", fontSize: 14, fontWeight: "600", textAlign: "center" },
+  text: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  success: { backgroundColor: "#059669" },
+  error: { backgroundColor: "#dc2626" },
+  info: { backgroundColor: "#2563eb" },
 });

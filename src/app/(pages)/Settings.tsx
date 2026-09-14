@@ -64,7 +64,10 @@ export default function Settings() {
   const [checkingServer, setCheckingServer] = useState(false);
   const [latency, setLatency] = useState<number | null>(null);
 
-  const checkServerHealth = async () => {
+  const HEALTHY_POLL_MS = 10 * 60 * 1000;
+  const UNHEALTHY_POLL_MS = 30 * 1000;
+
+  const checkServerHealth = async (): Promise<"healthy" | "unhealthy"> => {
     setCheckingServer(true);
     setServerStatus("checking");
     const startTime = Date.now();
@@ -74,13 +77,15 @@ export default function Settings() {
       if (res && res.status === 200) {
         setServerStatus("healthy");
         setLatency(endTime - startTime);
-      } else {
-        setServerStatus("unhealthy");
-        setLatency(null);
+        return "healthy";
       }
-    } catch (error) {
       setServerStatus("unhealthy");
       setLatency(null);
+      return "unhealthy";
+    } catch {
+      setServerStatus("unhealthy");
+      setLatency(null);
+      return "unhealthy";
     } finally {
       setCheckingServer(false);
     }
@@ -88,9 +93,27 @@ export default function Settings() {
 
   useFocusEffect(
     React.useCallback(() => {
-      checkServerHealth();
+      let isActive = true;
+      let healthTimeout: ReturnType<typeof setTimeout> | undefined;
+
+      const pollServerHealth = async () => {
+        const status = await checkServerHealth();
+        if (!isActive) return;
+        const delay =
+          status === "healthy" ? HEALTHY_POLL_MS : UNHEALTHY_POLL_MS;
+        healthTimeout = setTimeout(pollServerHealth, delay);
+      };
+
+      void pollServerHealth();
       void refreshUser();
-    }, [refreshUser]),
+
+      return () => {
+        isActive = false;
+        if (healthTimeout) clearTimeout(healthTimeout);
+      };
+      // refreshUser omitted on purpose: its identity changes on every Auth
+      // re-render and was causing rapid repeated health checks.
+    }, []),
   );
 
   // Sync fields with user context changes

@@ -1,11 +1,9 @@
 import express from "express";
-import { protect } from "../middleware/auth.js";
 import Loan from "../models/Loan.js";
 import Repayment from "../models/Repayment.js";
 import WorkEntry from "../models/WorkEntry.js";
 
 const router = express.Router();
-router.use(protect);
 
 // Get all loans
 router.get("/", async (req, res) => {

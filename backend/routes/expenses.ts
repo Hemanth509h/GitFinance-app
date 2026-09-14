@@ -1,11 +1,9 @@
 import express from "express";
 
-import { protect } from "../middleware/auth.js";
 import Expense from "../models/Expense.js";
 import { errorMessage } from "../utils/errors.js";
 
 const router = express.Router();
-router.use(protect);
 router.get("/", async (req, res) => {
   try {
     res.json(

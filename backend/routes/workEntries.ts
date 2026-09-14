@@ -1,13 +1,11 @@
 import express from "express";
 import { Types } from "mongoose";
-import { protect } from "../middleware/auth.js";
 import Loan from "../models/Loan.js";
 import Repayment from "../models/Repayment.js";
 import WorkEntry from "../models/WorkEntry.js";
 import { errorMessage } from "../utils/errors.js";
 
 const router = express.Router();
-router.use(protect);
 
 interface LoanRepaymentInput {
   userId: Types.ObjectId;

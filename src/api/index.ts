@@ -74,8 +74,6 @@ async function readCollection(collection: LocalCollection, request: () => Promis
 const DASHBOARD_KEYS = [
   "dashboard-summary",
   "dashboard-analytics",
-  "dashboard-clients",
-  "dashboard-monthly-history",
 ];
 
 async function invalidateDashboard() {
@@ -145,7 +143,7 @@ async function cachedRequest(key: string, request: () => Promise<any>) {
  * Pull fresh data from the server into SQLite without wiping the existing cache
  * first. Keeps the app usable if the request fails or times out.
  */
-export async function refreshCollection(
+async function refreshCollection(
   key: string,
   request: () => Promise<any>,
 ): Promise<{ data: any; changed: boolean }> {
@@ -216,11 +214,6 @@ export async function syncLocalData(): Promise<number> {
       ["loans", () => client.get("/loans")],
       ["dashboard-summary", () => client.get("/dashboard/summary")],
       ["dashboard-analytics", () => client.get("/dashboard/analytics")],
-      ["dashboard-clients", () => client.get("/dashboard/clients")],
-      [
-        "dashboard-monthly-history",
-        () => client.get("/dashboard/monthly-history"),
-      ],
       ["profile", () => client.get("/auth/me")],
     ];
 
@@ -268,12 +261,6 @@ export const api = {
       email,
     }),
 
-  resetPassword: (email: string, password: string) =>
-    client.post("/auth/reset-password", {
-      email,
-      password,
-    }),
-
   getMe: () =>
     cachedRequest("profile", () => client.get("/auth/me")),
 
@@ -289,12 +276,6 @@ export const api = {
 
   getAnalytics: () =>
     cachedRequest("dashboard-analytics", () => client.get("/dashboard/analytics")),
-
-  getClientAnalytics: () =>
-    cachedRequest("dashboard-clients", () => client.get("/dashboard/clients")),
-
-  getMonthlyHistory: () =>
-    cachedRequest("dashboard-monthly-history", () => client.get("/dashboard/monthly-history")),
 
   // ==================== Work Logs ====================
   getWorkLogs: () =>

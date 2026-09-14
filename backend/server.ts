@@ -1,16 +1,15 @@
-import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import express, { NextFunction, Request, Response } from "express";
-import fs from "fs";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
-import path from "path";
 
+import { requireApiAuth } from "./middleware/auth.js";
 import authRoutes from "./routes/auth.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import expenseRoutes from "./routes/expenses.js";
 import loanRoutes from "./routes/loans.js";
 import workEntryRoutes from "./routes/workEntries.js";
+
 dotenv.config();
 
 const app = express();
@@ -44,7 +43,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-app.use(cookieParser());
 app.use(express.json());
 
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -93,49 +91,28 @@ connectDatabase().catch((err: unknown) => {
 });
 
 // ================================
-// API Routes
+// API Routes (auth required unless public allowlist)
 // ================================
 
-app.get("/api/health", (req: Request, res: Response) => {
+app.use("/api", requireApiAuth);
+
+app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
   });
 });
 
 app.use("/api/auth", authRoutes);
-
 app.use("/api/work-logs", workEntryRoutes);
-
 app.use("/api/expenses", expenseRoutes);
-
 app.use("/api/loans", loanRoutes);
-
 app.use("/api/dashboard", dashboardRoutes);
-
-// ================================
-// Serve Frontend in Production
-// ================================
-
-if (process.env.NODE_ENV === "production") {
-  const distPath = path.resolve(process.cwd(), "../frontend/dist");
-
-  const indexPath = path.join(distPath, "index.html");
-
-  if (fs.existsSync(indexPath)) {
-    app.use(express.static(distPath));
-
-    app.get(/^\/(?!api\/).*/, (req: Request, res: Response) => {
-      res.sendFile(indexPath);
-    });
-  }
-}
 
 // ================================
 // Start Server
 // ================================
 
 const PORT: number = Number(process.env.PORT ?? 3000);
-
 const HOST: string = process.env.HOST ?? "0.0.0.0";
 
 app.listen(PORT, HOST, () => {
