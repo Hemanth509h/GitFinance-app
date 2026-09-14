@@ -61,7 +61,7 @@ export default function Login() {
     return (
         <KeyboardAvoidingView
             style={styles.page}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior="padding"
             keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
         >
             {/* Background */}

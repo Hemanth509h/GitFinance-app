@@ -15,6 +15,7 @@ import { api, syncLocalData } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { useAuth } from "../../context/AuthContext";
+import { useReloadOnSync } from "../../hooks/useReloadOnSync";
 
 // ── Badge Component ──
 function Badge({ status }: { status: string }) {
@@ -179,6 +180,8 @@ export default function Dashboard() {
     await syncLocalData().catch(() => {});
     await fetchData();
   };
+
+  useReloadOnSync(fetchData);
 
   useFocusEffect(
     React.useCallback(() => {

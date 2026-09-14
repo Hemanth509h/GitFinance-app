@@ -4,20 +4,26 @@ import { useFocusEffect } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { api, syncLocalData } from "../../api";
+import {
+  FormActions,
+  FormChoices,
+  FormField,
+  FormInput,
+} from "../../components/ui/FormControls";
+import { FormModal } from "../../components/ui/FormModal";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
+import { useReloadOnSync } from "../../hooks/useReloadOnSync";
 
 const Alert = { alert: showAlertToast };
 
@@ -47,60 +53,27 @@ function PaymentForm({ workEntry, onSubmit, onCancel }: any) {
   };
   return (
     <>
-      <View style={formStyles.field}>
-        <Text style={formStyles.label}>Amount received *</Text>
-        <TextInput
+      <FormField label="Amount received *" error={error}>
+        <FormInput
           keyboardType="decimal-pad"
           value={amount}
           onChangeText={setAmount}
           placeholder="Enter amount"
-          placeholderTextColor="#64748b"
-          style={formStyles.input}
         />
-        {error ? <Text style={formStyles.error}>{error}</Text> : null}
-      </View>
-      <View style={formStyles.field}>
-        <Text style={formStyles.label}>Payment status</Text>
-        <View style={formStyles.choices}>
-          {["Paid", "Partially Paid"].map((option) => (
-            <TouchableOpacity
-              key={option}
-              onPress={() => setStatus(option)}
-              style={[
-                formStyles.choice,
-                status === option && formStyles.choiceActive,
-              ]}
-            >
-              <Text
-                style={[
-                  formStyles.choiceText,
-                  status === option && formStyles.choiceTextActive,
-                ]}
-              >
-                {option}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-      <View style={formStyles.actions}>
-        <TouchableOpacity
-          disabled={submitting}
-          onPress={onCancel}
-          style={formStyles.cancel}
-        >
-          <Text style={formStyles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          disabled={submitting}
-          onPress={submit}
-          style={[formStyles.submit, submitting && formStyles.disabled]}
-        >
-          <Text style={formStyles.submitText}>
-            {submitting ? "Saving…" : "Record payment"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      </FormField>
+      <FormField label="Payment status">
+        <FormChoices
+          value={status}
+          options={["Paid", "Partially Paid"]}
+          onChange={setStatus}
+        />
+      </FormField>
+      <FormActions
+        submitLabel="Record payment"
+        onSubmit={submit}
+        onCancel={onCancel}
+        submitting={submitting}
+      />
     </>
   );
 }
@@ -185,6 +158,8 @@ export default function Payments() {
     await syncLocalData().catch(() => {});
     await fetchLogs();
   };
+
+  useReloadOnSync(fetchLogs);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -970,203 +945,113 @@ export default function Payments() {
       )}
 
       {/* Modal: Record Payment */}
-      <Modal
+      <FormModal
         visible={showPaymentModal}
-        transparent={true}
-        animationType="slide"
+        title="Record a Payment"
+        onClose={() => setShowPaymentModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.modalContainer}
-            behavior="padding"
-          >
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              automaticallyAdjustKeyboardInsets
-            >
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Record a Payment</Text>
-                  <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                    <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                  </TouchableOpacity>
-                </View>
-
-                <PaymentForm
-                  workEntry={selectedEntry}
-                  onSubmit={submitPaymentForm}
-                  onCancel={() => setShowPaymentModal(false)}
-                />
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+            <PaymentForm
+              workEntry={selectedEntry}
+              onSubmit={submitPaymentForm}
+              onCancel={() => setShowPaymentModal(false)}
+            />
+      </FormModal>
 
       {/* Modal: Edit Work Log */}
-      <Modal
+      <FormModal
         visible={showWorkEntryModal}
-        transparent={true}
-        animationType="slide"
+        title="Edit Work Entry"
+        onClose={() => setShowWorkEntryModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.modalContainer}
-            behavior="padding"
-          >
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets
-            >
-              <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Edit Work Entry</Text>
-                <TouchableOpacity onPress={() => setShowWorkEntryModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                </TouchableOpacity>
-              </View>
+            <Text style={styles.inputLabel}>Client Name</Text>
+            <TextInput
+              style={styles.textInput}
+              value={editClient}
+              onChangeText={setEditClient}
+              placeholder="Client name"
+              placeholderTextColor="#64748b"
+            />
 
-              <Text style={styles.inputLabel}>Client Name</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editClient}
-                onChangeText={setEditClient}
-                placeholder="Client name"
-                placeholderTextColor="#64748b"
-              />
+            <Text style={styles.inputLabel}>
+              Total Amount Expected ({currency})
+            </Text>
+            <TextInput
+              style={styles.textInput}
+              keyboardType="numeric"
+              value={editAmount}
+              onChangeText={setEditAmount}
+              placeholder="Total expected"
+              placeholderTextColor="#64748b"
+            />
 
-              <Text style={styles.inputLabel}>
-                Total Amount Expected ({currency})
-              </Text>
-              <TextInput
-                style={styles.textInput}
-                keyboardType="numeric"
-                value={editAmount}
-                onChangeText={setEditAmount}
-                placeholder="Total expected"
-                placeholderTextColor="#64748b"
-              />
+            <Text style={styles.inputLabel}>
+              Amount Received So Far ({currency})
+            </Text>
+            <TextInput
+              style={styles.textInput}
+              keyboardType="numeric"
+              value={editAmountPaid}
+              onChangeText={setEditAmountPaid}
+              placeholder="Total paid"
+              placeholderTextColor="#64748b"
+            />
 
-              <Text style={styles.inputLabel}>
-                Amount Received So Far ({currency})
-              </Text>
-              <TextInput
-                style={styles.textInput}
-                keyboardType="numeric"
-                value={editAmountPaid}
-                onChangeText={setEditAmountPaid}
-                placeholder="Total paid"
-                placeholderTextColor="#64748b"
-              />
-
-              <Text style={styles.inputLabel}>Status</Text>
-              <View style={styles.statusButtonsRow}>
-                {["Paid", "Partially Paid", "Unpaid"].map((st) => (
-                  <TouchableOpacity
-                    key={st}
+            <Text style={styles.inputLabel}>Status</Text>
+            <View style={styles.statusButtonsRow}>
+              {["Paid", "Partially Paid", "Unpaid"].map((st) => (
+                <TouchableOpacity
+                  key={st}
+                  style={[
+                    styles.statusSelectorBtn,
+                    editStatus === st && styles.statusSelectorBtnActive,
+                  ]}
+                  onPress={() => setEditStatus(st)}
+                >
+                  <Text
                     style={[
-                      styles.statusSelectorBtn,
-                      editStatus === st && styles.statusSelectorBtnActive,
+                      styles.statusSelectorBtnText,
+                      editStatus === st && styles.statusSelectorBtnTextActive,
                     ]}
-                    onPress={() => setEditStatus(st)}
                   >
-                    <Text
-                      style={[
-                        styles.statusSelectorBtnText,
-                        editStatus === st && styles.statusSelectorBtnTextActive,
-                      ]}
-                    >
-                      {st}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>Description</Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  { height: 80, textAlignVertical: "top" },
-                ]}
-                multiline={true}
-                value={editDescription}
-                onChangeText={setEditDescription}
-                placeholder="Log notes"
-                placeholderTextColor="#64748b"
-              />
-
-              <View style={[styles.modalButtonsRow, { marginTop: 16 }]}>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setShowWorkEntryModal(false)}
-                >
-                  <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                    {st}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalSubmitBtn}
-                  onPress={handleUpdateWorkEntry}
-                >
-                  <Text style={styles.modalSubmitBtnText}>Save</Text>
-                </TouchableOpacity>
-              </View>
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+              ))}
+            </View>
+
+            <Text style={styles.inputLabel}>Description</Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                { height: 80, textAlignVertical: "top" },
+              ]}
+              multiline={true}
+              value={editDescription}
+              onChangeText={setEditDescription}
+              placeholder="Log notes"
+              placeholderTextColor="#64748b"
+            />
+
+            <View style={[styles.modalButtonsRow, { marginTop: 16 }]}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowWorkEntryModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={handleUpdateWorkEntry}
+              >
+                <Text style={styles.modalSubmitBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+      </FormModal>
     </View>
   );
 }
 
-const formStyles = StyleSheet.create({
-  field: { marginBottom: 16 },
-  label: { color: "#cbd5e1", fontSize: 13, fontWeight: "600", marginBottom: 7 },
-  input: {
-    minHeight: 46,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#2b3a4e",
-    color: "#f8fafc",
-    backgroundColor: "#0f1d2d",
-    paddingHorizontal: 13,
-    fontSize: 15,
-  },
-  error: { color: "#fca5a5", fontSize: 12, marginTop: 6 },
-  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  choice: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    backgroundColor: "#172233",
-    borderWidth: 1,
-    borderColor: "#2b3a4e",
-  },
-  choiceActive: { backgroundColor: "#0c4a6e", borderColor: "#38bdf8" },
-  choiceText: { color: "#94a3b8", fontSize: 12 },
-  choiceTextActive: { color: "#e0f2fe", fontWeight: "700" },
-  actions: { flexDirection: "row", gap: 12, marginTop: 8 },
-  cancel: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 13,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  cancelText: { color: "#cbd5e1", fontWeight: "700" },
-  submit: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 13,
-    borderRadius: 10,
-    backgroundColor: "#0ea5e9",
-  },
-  submitText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
-});
+
 
 const styles = StyleSheet.create({
   screen: {
@@ -1516,34 +1401,6 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 9,
     fontWeight: "700",
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(8, 20, 33, 0.6)",
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#172233",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#2b3a4e",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#ffffff",
   },
   inputLabel: {
     fontSize: 12,

@@ -14,6 +14,7 @@ import { api, syncLocalData } from "../../api";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
+import { useReloadOnSync } from "../../hooks/useReloadOnSync";
 
 const Alert = { alert: showAlertToast };
 
@@ -55,6 +56,8 @@ export default function MonthlyHistory() {
       fetchHistory();
     }, []),
   );
+
+  useReloadOnSync(fetchHistory);
 
   const handleRefresh = async () => {
     setRefreshing(true);

@@ -3,116 +3,30 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { api, syncLocalData } from "../../api";
+import {
+  FormActions,
+  FormChoices,
+  FormField,
+  FormInput,
+} from "../../components/ui/FormControls";
+import { FormModal } from "../../components/ui/FormModal";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
+import { useReloadOnSync } from "../../hooks/useReloadOnSync";
 
 const Alert = { alert: showAlertToast };
 
 const formToday = () => new Date().toISOString().slice(0, 10);
-function FormField({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={formStyles.field}>
-      <Text style={formStyles.label}>{label}</Text>
-      {children}
-      {error ? <Text style={formStyles.error}>{error}</Text> : null}
-    </View>
-  );
-}
-function FormInput(props: React.ComponentProps<typeof TextInput>) {
-  return (
-    <TextInput
-      {...props}
-      placeholderTextColor="#64748b"
-      style={[formStyles.input, props.style]}
-    />
-  );
-}
-function FormChoices({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <View style={formStyles.choices}>
-      {options.map((option) => (
-        <TouchableOpacity
-          key={option}
-          onPress={() => onChange(option)}
-          style={[
-            formStyles.choice,
-            value === option && formStyles.choiceActive,
-          ]}
-        >
-          <Text
-            style={[
-              formStyles.choiceText,
-              value === option && formStyles.choiceTextActive,
-            ]}
-          >
-            {option}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-function FormActions({
-  submitLabel,
-  onSubmit,
-  onCancel,
-  submitting = false,
-}: {
-  submitLabel: string;
-  onSubmit: () => void;
-  onCancel: () => void;
-  submitting?: boolean;
-}) {
-  return (
-    <View style={formStyles.actions}>
-      <TouchableOpacity
-        disabled={submitting}
-        onPress={onCancel}
-        style={formStyles.cancel}
-      >
-        <Text style={formStyles.cancelText}>Cancel</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        disabled={submitting}
-        onPress={onSubmit}
-        style={[formStyles.submit, submitting && formStyles.disabled]}
-      >
-        <Text style={formStyles.submitText}>
-          {submitting ? "Saving…" : submitLabel}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 function ExpenseForm({ initialData, onSubmit, onCancel }: any) {
   const [data, setData] = useState(() => ({
     date: initialData?.date?.slice(0, 10) || formToday(),
@@ -291,6 +205,8 @@ export default function Expenses() {
     await syncLocalData().catch(() => {});
     await fetchExpenses();
   };
+
+  useReloadOnSync(fetchExpenses);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -771,39 +687,17 @@ export default function Expenses() {
         </ScrollView>
       )}
 
-      {/* Modal: Log / Edit Expense */}
-      <Modal visible={showModal} transparent={true} animationType="slide">
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.modalContainer}
-            behavior="padding"
-          >
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              automaticallyAdjustKeyboardInsets
-            >
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>
-                    {editingExpense ? "Edit Expense" : "Add Expense"}
-                  </Text>
-                  <TouchableOpacity onPress={() => setShowModal(false)}>
-                    <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                  </TouchableOpacity>
-                </View>
-
-                <ExpenseForm
-                  initialData={editingExpense}
-                  onSubmit={submitExpenseForm}
-                  onCancel={() => setShowModal(false)}
-                />
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+      <FormModal
+        visible={showModal}
+        title={editingExpense ? "Edit Expense" : "Add Expense"}
+        onClose={() => setShowModal(false)}
+      >
+        <ExpenseForm
+          initialData={editingExpense}
+          onSubmit={submitExpenseForm}
+          onCancel={() => setShowModal(false)}
+        />
+      </FormModal>
 
       {/* Floating Action Button (FAB) */}
       <TouchableOpacity style={styles.fab} onPress={handleOpenAddModal}>
@@ -813,52 +707,6 @@ export default function Expenses() {
   );
 }
 
-const formStyles = StyleSheet.create({
-  field: { marginBottom: 16 },
-  label: { color: "#cbd5e1", fontSize: 13, fontWeight: "600", marginBottom: 7 },
-  input: {
-    minHeight: 46,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#2b3a4e",
-    color: "#f8fafc",
-    backgroundColor: "#0f1d2d",
-    paddingHorizontal: 13,
-    fontSize: 15,
-  },
-  error: { color: "#fca5a5", fontSize: 12, marginTop: 6 },
-  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  choice: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    backgroundColor: "#172233",
-    borderWidth: 1,
-    borderColor: "#2b3a4e",
-  },
-  choiceActive: { backgroundColor: "#0c4a6e", borderColor: "#38bdf8" },
-  choiceText: { color: "#94a3b8", fontSize: 12 },
-  choiceTextActive: { color: "#e0f2fe", fontWeight: "700" },
-  actions: { flexDirection: "row", gap: 12, marginTop: 8 },
-  cancel: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 13,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  cancelText: { color: "#cbd5e1", fontWeight: "700" },
-  submit: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 13,
-    borderRadius: 10,
-    backgroundColor: "#0ea5e9",
-  },
-  submitText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
-});
 
 const styles = StyleSheet.create({
   screen: {
@@ -1170,34 +1018,6 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 9,
     fontWeight: "700",
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(8, 20, 33, 0.6)",
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#172233",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#2b3a4e",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#ffffff",
   },
   inputLabel: {
     fontSize: 12,

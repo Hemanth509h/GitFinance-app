@@ -1,154 +1,43 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { api, syncLocalData } from "../../api";
+import {
+  FormActions,
+  FormChoices,
+  FormField,
+  FormInput,
+} from "../../components/ui/FormControls";
+import { FormModal } from "../../components/ui/FormModal";
+import { getCached, setCached } from "../../api/localData";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { showAlertToast, toast } from "../../components/ui/Toast";
 import { useAuth } from "../../context/AuthContext";
+import { useReloadOnSync } from "../../hooks/useReloadOnSync";
 
 const Alert = { alert: showAlertToast };
 
 const formToday = () => new Date().toISOString().slice(0, 10);
-function FormField({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={formStyles.field}>
-      <Text style={formStyles.label}>{label}</Text>
-      {children}
-      {error ? <Text style={formStyles.error}>{error}</Text> : null}
-    </View>
-  );
-}
-function FormInput(props: React.ComponentProps<typeof TextInput>) {
-  return (
-    <TextInput
-      {...props}
-      placeholderTextColor="#64748b"
-      style={[formStyles.input, props.style]}
-    />
-  );
-}
-function FormChoices({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <View style={formStyles.choices}>
-      {options.map((option) => (
-        <TouchableOpacity
-          key={option}
-          onPress={() => onChange(option)}
-          style={[
-            formStyles.choice,
-            value === option && formStyles.choiceActive,
-          ]}
-        >
-          <Text
-            style={[
-              formStyles.choiceText,
-              value === option && formStyles.choiceTextActive,
-            ]}
-          >
-            {option}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-type LoanGroupBy = "All" | "Active" | "Repaid" | "By Lender";
+export type CustomLoanGroup = {
+  id: string;
+  name: string;
+  description?: string;
+  loanIds: string[];
+  createdAt: string;
+};
 
-function GroupBySelector({
-  value,
-  onChange,
-}: {
-  value: LoanGroupBy;
-  onChange: (value: LoanGroupBy) => void;
-}) {
-  return (
-    <View style={formStyles.choices}>
-      {(["All", "Active", "Repaid", "By Lender"] as LoanGroupBy[]).map(
-        (option) => (
-          <TouchableOpacity
-            key={option}
-            onPress={() => onChange(option)}
-            style={[
-              formStyles.choice,
-              value === option && formStyles.choiceActive,
-            ]}
-          >
-            <Text
-              style={[
-                formStyles.choiceText,
-                value === option && formStyles.choiceTextActive,
-              ]}
-            >
-              {option}
-            </Text>
-          </TouchableOpacity>
-        ),
-      )}
-    </View>
-  );
-}
-function FormActions({
-  submitLabel,
-  onSubmit,
-  onCancel,
-  submitting = false,
-}: {
-  submitLabel: string;
-  onSubmit: () => void;
-  onCancel: () => void;
-  submitting?: boolean;
-}) {
-  return (
-    <View style={formStyles.actions}>
-      <TouchableOpacity
-        disabled={submitting}
-        onPress={onCancel}
-        style={formStyles.cancel}
-      >
-        <Text style={formStyles.cancelText}>Cancel</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        disabled={submitting}
-        onPress={onSubmit}
-        style={[formStyles.submit, submitting && formStyles.disabled]}
-      >
-        <Text style={formStyles.submitText}>
-          {submitting ? "Saving…" : submitLabel}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
+
 function LoanForm({ initialData, onSubmit, onCancel }: any) {
   const [data, setData] = useState(() => ({
     lenderName: initialData?.lenderName || "",
@@ -325,8 +214,8 @@ function RepaymentForm({
     : "None";
   return (
     <>
-      <View style={formStyles.summary}>
-        <Text style={formStyles.summaryText}>
+      <View style={styles.summary}>
+        <Text style={styles.summaryText}>
           Remaining balance: {formatCurrency(remaining)}
         </Text>
       </View>
@@ -359,9 +248,9 @@ function RepaymentForm({
           <View>
             <TouchableOpacity
               onPress={() => setShowWorkLogMenu((visible) => !visible)}
-              style={formStyles.dropdownTrigger}
+              style={styles.dropdownTrigger}
             >
-              <Text numberOfLines={1} style={formStyles.dropdownTriggerText}>
+              <Text numberOfLines={1} style={styles.dropdownTriggerText}>
                 {workLogLabel}
               </Text>
               <Ionicons
@@ -371,16 +260,16 @@ function RepaymentForm({
               />
             </TouchableOpacity>
             {showWorkLogMenu ? (
-              <View style={formStyles.dropdownMenu}>
-                <ScrollView nestedScrollEnabled style={formStyles.dropdownList}>
+              <View style={styles.dropdownMenu}>
+                <ScrollView nestedScrollEnabled style={styles.dropdownList}>
                   <TouchableOpacity
                     onPress={() => {
                       setWorkEntryId("");
                       setShowWorkLogMenu(false);
                     }}
-                    style={formStyles.dropdownOption}
+                    style={styles.dropdownOption}
                   >
-                    <Text style={formStyles.dropdownOptionText}>None</Text>
+                    <Text style={styles.dropdownOptionText}>None</Text>
                   </TouchableOpacity>
                   {workEntries.map((entry) => {
                     const id = entry._id || entry.id;
@@ -392,16 +281,16 @@ function RepaymentForm({
                           setShowWorkLogMenu(false);
                         }}
                         style={[
-                          formStyles.dropdownOption,
+                          styles.dropdownOption,
                           workEntryId === id &&
-                            formStyles.dropdownOptionSelected,
+                            styles.dropdownOptionSelected,
                         ]}
                       >
                         <Text
                           style={[
-                            formStyles.dropdownOptionText,
+                            styles.dropdownOptionText,
                             workEntryId === id &&
-                              formStyles.dropdownOptionTextSelected,
+                              styles.dropdownOptionTextSelected,
                           ]}
                         >
                           {formatWorkLogDate(entry.date)} ·{" "}
@@ -517,7 +406,6 @@ export default function Loan() {
   const [loans, setLoans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [groupBy, setGroupBy] = useState<LoanGroupBy>("All");
 
   // Expanded states
   const [expandedLoanId, setExpandedLoanId] = useState<string | null>(null);
@@ -585,6 +473,8 @@ export default function Loan() {
     }
   };
 
+  useReloadOnSync(fetchLoans);
+
   const fetchRepayments = async (loanId: string) => {
     try {
       setRepaymentsLoading(loanId);
@@ -609,9 +499,111 @@ export default function Loan() {
     }
   };
 
+  // Custom Groups State
+  const [customGroups, setCustomGroups] = useState<CustomLoanGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  const [showCustomGroupModal, setShowCustomGroupModal] = useState(false);
+  const [editingCustomGroup, setEditingCustomGroup] =
+    useState<CustomLoanGroup | null>(null);
+  const [customGroupNameInput, setCustomGroupNameInput] = useState("");
+  const [customGroupDescInput, setCustomGroupDescInput] = useState("");
+  const [customGroupLoanIdsInput, setCustomGroupLoanIdsInput] = useState<
+    string[]
+  >([]);
+
+  const fetchCustomGroups = async () => {
+    try {
+      const cached = await getCached<CustomLoanGroup[]>("custom-loan-groups");
+      if (cached && Array.isArray(cached)) {
+        setCustomGroups(cached);
+      }
+    } catch (e) {
+      console.error("Failed to load custom loan groups", e);
+    }
+  };
+
+  const handleOpenCreateCustomGroup = () => {
+    setEditingCustomGroup(null);
+    setCustomGroupNameInput("");
+    setCustomGroupDescInput("");
+    setCustomGroupLoanIdsInput([]);
+    setShowCustomGroupModal(true);
+  };
+
+  const handleOpenEditCustomGroup = (group: CustomLoanGroup) => {
+    setEditingCustomGroup(group);
+    setCustomGroupNameInput(group.name);
+    setCustomGroupDescInput(group.description || "");
+    setCustomGroupLoanIdsInput(group.loanIds || []);
+    setShowCustomGroupModal(true);
+  };
+
+  const handleToggleLoanInGroup = (loanId: string) => {
+    setCustomGroupLoanIdsInput((prev) =>
+      prev.includes(loanId)
+        ? prev.filter((id) => id !== loanId)
+        : [...prev, loanId],
+    );
+  };
+
+  const handleSaveCustomGroup = async () => {
+    if (!customGroupNameInput.trim()) {
+      toast.error("Please enter a group name.");
+      return;
+    }
+    const groupId = editingCustomGroup?.id || `grp-${Date.now()}`;
+    const newGroup: CustomLoanGroup = {
+      id: groupId,
+      name: customGroupNameInput.trim(),
+      description: customGroupDescInput.trim(),
+      loanIds: customGroupLoanIdsInput,
+      createdAt: editingCustomGroup?.createdAt || new Date().toISOString(),
+    };
+
+    let updated: CustomLoanGroup[];
+    if (editingCustomGroup) {
+      updated = customGroups.map((g) =>
+        g.id === editingCustomGroup.id ? newGroup : g,
+      );
+    } else {
+      updated = [...customGroups, newGroup];
+    }
+    setCustomGroups(updated);
+    setSelectedGroupId(groupId);
+    await setCached("custom-loan-groups", updated);
+    setShowCustomGroupModal(false);
+    toast.success(
+      editingCustomGroup ? "Group updated." : "Group created successfully.",
+    );
+  };
+
+  const handleDeleteCustomGroup = (groupId: string) => {
+    Alert.alert(
+      "Delete Custom Group",
+      "Are you sure you want to delete this custom group? The loans will not be deleted.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const updated = customGroups.filter((g) => g.id !== groupId);
+            setCustomGroups(updated);
+            if (selectedGroupId === groupId) {
+              setSelectedGroupId("all");
+            }
+            await setCached("custom-loan-groups", updated);
+            toast.success("Group deleted.");
+          },
+        },
+      ],
+    );
+  };
+
   useFocusEffect(
     React.useCallback(() => {
       fetchLoans();
+      fetchCustomGroups();
     }, []),
   );
 
@@ -650,26 +642,27 @@ export default function Loan() {
       : "Active";
 
   const getGroupedLoans = () => {
-    if (groupBy === "All") return [{ label: "All", items: loans }];
-
-    if (groupBy === "Active" || groupBy === "Repaid") {
-      return [
-        {
-          label: groupBy,
-          items: loans.filter((loan) => getLoanStatus(loan) === groupBy),
-        },
-      ];
+    if (selectedGroupId === "all") {
+      return [{ label: "All Loans", items: loans }];
     }
 
-    const byLender = loans.reduce<Record<string, any[]>>((groups, loan) => {
-      const lender = String(loan.lenderName || "Unknown lender").trim();
-      (groups[lender] ??= []).push(loan);
-      return groups;
-    }, {});
+    if (selectedGroupId === "others") {
+      const allGroupedIds = new Set(
+        customGroups.flatMap((g) => g.loanIds || []),
+      );
+      const ungroupedLoans = loans.filter((l) => !allGroupedIds.has(l._id));
+      return [{ label: "Other Loans", items: ungroupedLoans }];
+    }
 
-    return Object.entries(byLender)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([label, items]) => ({ label, items }));
+    const activeGroup = customGroups.find((g) => g.id === selectedGroupId);
+    if (!activeGroup) {
+      return [{ label: "All Loans", items: loans }];
+    }
+
+    const groupLoans = loans.filter((l) =>
+      activeGroup.loanIds?.includes(l._id),
+    );
+    return [{ label: activeGroup.name, items: groupLoans }];
   };
 
   // Grouping helper for repayments list
@@ -996,6 +989,51 @@ export default function Loan() {
     );
   };
 
+  // Ungrouped / Other loans (loans not assigned to any custom group)
+  const allGroupedLoanIds = useMemo(
+    () => new Set(customGroups.flatMap((g) => g.loanIds || [])),
+    [customGroups],
+  );
+  const otherLoans = useMemo(
+    () => loans.filter((l) => !allGroupedLoanIds.has(l._id)),
+    [loans, allGroupedLoanIds],
+  );
+
+  // Selected custom group and derived KPIs
+  const isOthersSelected = selectedGroupId === "others";
+  const activeCustomGroup =
+    selectedGroupId !== "all" && selectedGroupId !== "others"
+      ? customGroups.find((g) => g.id === selectedGroupId) || null
+      : null;
+  const activeCustomGroupId = activeCustomGroup?.id;
+  const activeGroupLoans = isOthersSelected
+    ? otherLoans
+    : activeCustomGroup
+      ? loans.filter((l) => activeCustomGroup.loanIds?.includes(l._id))
+      : [];
+
+  const groupTotalBorrowed = activeGroupLoans.reduce(
+    (sum: number, l: any) => sum + Number(l.principalAmount || l.totalAmount || 0),
+    0,
+  );
+  const groupTotalPaid = activeGroupLoans.reduce(
+    (sum: number, l: any) => sum + Number(l.amountPaid || 0),
+    0,
+  );
+  const groupTotalRemaining = activeGroupLoans.reduce((sum: number, l: any) => {
+    const rem = Math.max(
+      0,
+      Number(l.totalAmount || 0) - Number(l.amountPaid || 0),
+    );
+    return sum + rem;
+  }, 0);
+  const groupTotalOwed = activeGroupLoans.reduce(
+    (sum: number, l: any) => sum + Number(l.totalAmount || 0),
+    0,
+  );
+  const groupProgress =
+    groupTotalOwed > 0 ? (groupTotalPaid / groupTotalOwed) * 100 : 0;
+
   return (
     <View style={styles.screen}>
       {/* Header */}
@@ -1023,45 +1061,491 @@ export default function Loan() {
             />
           }
         >
-          {/* Stats Tiles */}
-          <View style={styles.metricsGrid}>
-            <MetricTile
-              title="Total Borrowed"
-              value={formatCurrency(totalBorrowed)}
-              subtext="Principal sum"
-              subtextColor="primary"
-              icon="cash-outline"
-              gradientFrom="#1e1b4b"
-              gradientTo="#4f46e5"
-            />
-            <MetricTile
-              title="Outstanding Balance"
-              value={formatCurrency(totalRemaining)}
-              subtext={`Incl. interest additions`}
-              subtextColor={totalRemaining === 0 ? "success" : "error"}
-              icon="wallet-outline"
-              gradientFrom="#4c0519"
-              gradientTo="#e11d48"
-            />
-            <MetricTile
-              title="Total Progress"
-              value={`${Math.round(progressPercent)}%`}
-              subtext={`Repaid ${formatCurrency(totalPaid)} in total`}
-              subtextColor="success"
-              icon="checkmark-done-circle-outline"
-              gradientFrom="#064e3b"
-              gradientTo="#059669"
-              isFullWidth={true}
-            />
-          </View>
+          {/* Loan Groups Navigation Bar */}
+          <View style={styles.customGroupSection}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="folder-outline" size={16} color="#94a3b8" />
+              <Text style={styles.sectionTitle}>Loan Groups</Text>
+            </View>
 
-          {/* Section Header */}
-          <View style={styles.sectionHeader}>
-            <Ionicons name="business-outline" size={16} color="#94a3b8" />
-            <Text style={styles.sectionTitle}>Loan Accounts</Text>
-          </View>
+            <View style={styles.groupChipsRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.groupChipsScroll}
+              >
+                {/* All Loans Chip */}
+                <TouchableOpacity
+                  onPress={() => setSelectedGroupId("all")}
+                  style={[
+                    styles.groupChip,
+                    selectedGroupId === "all" && styles.groupChipActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="layers-outline"
+                    size={14}
+                    color={selectedGroupId === "all" ? "#38bdf8" : "#94a3b8"}
+                  />
+                  <Text
+                    style={[
+                      styles.groupChipText,
+                      selectedGroupId === "all" && styles.groupChipTextActive,
+                    ]}
+                  >
+                    All Loans
+                  </Text>
+                  <View
+                    style={[
+                      styles.groupChipBadge,
+                      selectedGroupId === "all" && styles.groupChipBadgeActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.groupChipBadgeText,
+                        selectedGroupId === "all" &&
+                          styles.groupChipBadgeTextActive,
+                      ]}
+                    >
+                      {loans.length}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
 
-          <GroupBySelector value={groupBy} onChange={setGroupBy} />
+                {/* Custom Groups Chips */}
+                {customGroups.map((grp) => {
+                  const isSelected = selectedGroupId === grp.id;
+                  const count = loans.filter((l) =>
+                    grp.loanIds?.includes(l._id),
+                  ).length;
+                  return (
+                    <TouchableOpacity
+                      key={grp.id}
+                      onPress={() => setSelectedGroupId(grp.id)}
+                      style={[
+                        styles.groupChip,
+                        isSelected && styles.groupChipActive,
+                      ]}
+                    >
+                      <Ionicons
+                        name="folder-outline"
+                        size={13}
+                        color={isSelected ? "#38bdf8" : "#94a3b8"}
+                      />
+                      <Text
+                        style={[
+                          styles.groupChipText,
+                          isSelected && styles.groupChipTextActive,
+                        ]}
+                      >
+                        {grp.name}
+                      </Text>
+                      <View
+                        style={[
+                          styles.groupChipBadge,
+                          isSelected && styles.groupChipBadgeActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.groupChipBadgeText,
+                            isSelected && styles.groupChipBadgeTextActive,
+                          ]}
+                        >
+                          {count}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Other / Ungrouped Loans Chip (if any loans are not assigned to a group) */}
+                {otherLoans.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setSelectedGroupId("others")}
+                    style={[
+                      styles.groupChip,
+                      selectedGroupId === "others" && styles.groupChipActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name="cube-outline"
+                      size={13}
+                      color={selectedGroupId === "others" ? "#38bdf8" : "#94a3b8"}
+                    />
+                    <Text
+                      style={[
+                        styles.groupChipText,
+                        selectedGroupId === "others" && styles.groupChipTextActive,
+                      ]}
+                    >
+                      Other Loans
+                    </Text>
+                    <View
+                      style={[
+                        styles.groupChipBadge,
+                        selectedGroupId === "others" && styles.groupChipBadgeActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.groupChipBadgeText,
+                          selectedGroupId === "others" &&
+                            styles.groupChipBadgeTextActive,
+                        ]}
+                      >
+                        {otherLoans.length}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* + New Group Button */}
+                <TouchableOpacity
+                  onPress={handleOpenCreateCustomGroup}
+                  style={styles.newGroupBtn}
+                >
+                  <Ionicons name="add" size={15} color="#10b981" />
+                  <Text style={styles.newGroupBtnText}>New Group</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+
+            {/* If All Loans is selected: show Global KPI Tiles */}
+            {selectedGroupId === "all" ? (
+              <View style={styles.metricsGrid}>
+                <MetricTile
+                  title="Total Borrowed"
+                  value={formatCurrency(totalBorrowed)}
+                  subtext="Principal sum"
+                  subtextColor="primary"
+                  icon="cash-outline"
+                  gradientFrom="#1e1b4b"
+                  gradientTo="#4f46e5"
+                />
+                <MetricTile
+                  title="Outstanding Balance"
+                  value={formatCurrency(totalRemaining)}
+                  subtext="Incl. interest additions"
+                  subtextColor={totalRemaining === 0 ? "success" : "error"}
+                  icon="wallet-outline"
+                  gradientFrom="#4c0519"
+                  gradientTo="#e11d48"
+                />
+                <MetricTile
+                  title="Total Progress"
+                  value={`${Math.round(progressPercent)}%`}
+                  subtext={`Repaid ${formatCurrency(totalPaid)} in total`}
+                  subtextColor="success"
+                  icon="checkmark-done-circle-outline"
+                  gradientFrom="#064e3b"
+                  gradientTo="#059669"
+                  isFullWidth={true}
+                />
+              </View>
+            ) : isOthersSelected ? (
+              /* If "Other Loans" is selected: show Other Loans Header & Group-specific KPIs */
+              <View style={styles.activeGroupContainer}>
+                <View style={styles.activeGroupHeader}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Text style={styles.activeGroupName}>Other Loans</Text>
+                      <View style={styles.activeGroupCountPill}>
+                        <Text style={styles.activeGroupCountText}>
+                          {otherLoans.length}{" "}
+                          {otherLoans.length === 1 ? "loan" : "loans"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.activeGroupDesc}>
+                      Loans not yet assigned to any custom group
+                    </Text>
+                  </View>
+
+                  <View style={styles.activeGroupActions}>
+                    <TouchableOpacity
+                      onPress={handleOpenCreateCustomGroup}
+                      style={styles.groupActionBtn}
+                    >
+                      <Ionicons name="add" size={15} color="#38bdf8" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* TOTAL KPIS FOR OTHER LOANS */}
+                <View style={styles.groupKpiGrid}>
+                  <LinearGradient
+                    colors={["#1e1b4b", "#312e81"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.groupKpiCard}
+                  >
+                    <View style={styles.groupKpiTop}>
+                      <Text style={styles.groupKpiLabel}>GROUP BORROWED</Text>
+                      <Ionicons
+                        name="cash-outline"
+                        size={15}
+                        color="#a5b4fc"
+                      />
+                    </View>
+                    <Text style={styles.groupKpiValue}>
+                      {formatCurrency(groupTotalBorrowed)}
+                    </Text>
+                    <Text style={styles.groupKpiSub}>
+                      {otherLoans.length} loans unassigned
+                    </Text>
+                  </LinearGradient>
+
+                  <LinearGradient
+                    colors={["#4c0519", "#881337"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.groupKpiCard}
+                  >
+                    <View style={styles.groupKpiTop}>
+                      <Text style={styles.groupKpiLabel}>OUTSTANDING</Text>
+                      <Ionicons
+                        name="wallet-outline"
+                        size={15}
+                        color="#fda4af"
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.groupKpiValue,
+                        {
+                          color:
+                            groupTotalRemaining === 0 ? "#34d399" : "#fda4af",
+                        },
+                      ]}
+                    >
+                      {formatCurrency(groupTotalRemaining)}
+                    </Text>
+                    <Text style={styles.groupKpiSub}>
+                      {groupTotalRemaining === 0
+                        ? "Fully cleared 🎉"
+                        : "Pending balance"}
+                    </Text>
+                  </LinearGradient>
+
+                  <LinearGradient
+                    colors={["#064e3b", "#065f46"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.groupKpiCard, styles.groupKpiCardFull]}
+                  >
+                    <View style={styles.groupKpiTop}>
+                      <Text style={styles.groupKpiLabel}>GROUP PROGRESS</Text>
+                      <Ionicons
+                        name="checkmark-done-circle-outline"
+                        size={15}
+                        color="#6ee7b7"
+                      />
+                    </View>
+                    <View style={styles.groupProgressRow}>
+                      <Text style={styles.groupKpiValue}>
+                        {Math.round(groupProgress)}%
+                      </Text>
+                      <Text style={styles.groupRepaidText}>
+                        Repaid {formatCurrency(groupTotalPaid)} of{" "}
+                        {formatCurrency(groupTotalOwed)}
+                      </Text>
+                    </View>
+                    <View style={styles.groupProgressBarTrack}>
+                      <View
+                        style={[
+                          styles.groupProgressBarFill,
+                          {
+                            width: `${Math.min(100, Math.max(0, groupProgress))}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </LinearGradient>
+                </View>
+              </View>
+            ) : activeCustomGroup ? (
+              /* If a Custom Group is selected: show Active Group Header & Group-specific KPIs */
+              <View style={styles.activeGroupContainer}>
+                {/* Active Group Header */}
+                <View style={styles.activeGroupHeader}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Text style={styles.activeGroupName}>
+                        {activeCustomGroup.name}
+                      </Text>
+                      <View style={styles.activeGroupCountPill}>
+                        <Text style={styles.activeGroupCountText}>
+                          {activeGroupLoans.length}{" "}
+                          {activeGroupLoans.length === 1 ? "loan" : "loans"}
+                        </Text>
+                      </View>
+                    </View>
+                    {activeCustomGroup.description ? (
+                      <Text style={styles.activeGroupDesc}>
+                        {activeCustomGroup.description}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.activeGroupActions}>
+                    <TouchableOpacity
+                      onPress={() =>
+                        handleOpenEditCustomGroup(activeCustomGroup)
+                      }
+                      style={styles.groupActionBtn}
+                    >
+                      <Ionicons name="pencil" size={13} color="#cbd5e1" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() =>
+                        handleDeleteCustomGroup(activeCustomGroup.id)
+                      }
+                      style={[
+                        styles.groupActionBtn,
+                        styles.groupActionBtnDelete,
+                      ]}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={13}
+                        color="#ef4444"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* TOTAL KPIS FOR THAT GROUP */}
+                <View style={styles.groupKpiGrid}>
+                  <LinearGradient
+                    colors={["#1e1b4b", "#312e81"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.groupKpiCard}
+                  >
+                    <View style={styles.groupKpiTop}>
+                      <Text style={styles.groupKpiLabel}>GROUP BORROWED</Text>
+                      <Ionicons
+                        name="cash-outline"
+                        size={15}
+                        color="#a5b4fc"
+                      />
+                    </View>
+                    <Text style={styles.groupKpiValue}>
+                      {formatCurrency(groupTotalBorrowed)}
+                    </Text>
+                    <Text style={styles.groupKpiSub}>
+                      {activeGroupLoans.length} loans included
+                    </Text>
+                  </LinearGradient>
+
+                  <LinearGradient
+                    colors={["#4c0519", "#881337"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.groupKpiCard}
+                  >
+                    <View style={styles.groupKpiTop}>
+                      <Text style={styles.groupKpiLabel}>OUTSTANDING</Text>
+                      <Ionicons
+                        name="wallet-outline"
+                        size={15}
+                        color="#fda4af"
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.groupKpiValue,
+                        {
+                          color:
+                            groupTotalRemaining === 0 ? "#34d399" : "#fda4af",
+                        },
+                      ]}
+                    >
+                      {formatCurrency(groupTotalRemaining)}
+                    </Text>
+                    <Text style={styles.groupKpiSub}>
+                      {groupTotalRemaining === 0
+                        ? "Fully cleared 🎉"
+                        : "Pending balance"}
+                    </Text>
+                  </LinearGradient>
+
+                  <LinearGradient
+                    colors={["#064e3b", "#065f46"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.groupKpiCard, styles.groupKpiCardFull]}
+                  >
+                    <View style={styles.groupKpiTop}>
+                      <Text style={styles.groupKpiLabel}>GROUP PROGRESS</Text>
+                      <Ionicons
+                        name="checkmark-done-circle-outline"
+                        size={15}
+                        color="#6ee7b7"
+                      />
+                    </View>
+                    <View style={styles.groupProgressRow}>
+                      <Text style={styles.groupKpiValue}>
+                        {Math.round(groupProgress)}%
+                      </Text>
+                      <Text style={styles.groupRepaidText}>
+                        Repaid {formatCurrency(groupTotalPaid)} of{" "}
+                        {formatCurrency(groupTotalOwed)}
+                      </Text>
+                    </View>
+                    <View style={styles.groupProgressBarTrack}>
+                      <View
+                        style={[
+                          styles.groupProgressBarFill,
+                          {
+                            width: `${Math.min(100, Math.max(0, groupProgress))}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </LinearGradient>
+                </View>
+
+                {/* If no loans assigned to this group yet */}
+                {activeGroupLoans.length === 0 && (
+                  <View style={styles.noLoansInGroupCard}>
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={22}
+                      color="#38bdf8"
+                    />
+                    <Text style={styles.noLoansInGroupText}>
+                      No loans assigned to this group yet.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        handleOpenEditCustomGroup(activeCustomGroup)
+                      }
+                      style={styles.btnAssignLoans}
+                    >
+                      <Text style={styles.btnAssignLoansText}>
+                        Select Loans
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ) : null}
+          </View>
 
           {/* Loans Cards List */}
           <View style={styles.listContainer}>
@@ -1074,7 +1558,7 @@ export default function Loan() {
             ) : (
               getGroupedLoans().map((section) => (
                 <React.Fragment key={section.label}>
-                  {groupBy !== "All" && (
+                  {selectedGroupId !== "all" && (
                     <View style={styles.loanGroupHeader}>
                       <Text style={styles.loanGroupTitle}>
                         {section.label}
@@ -1084,7 +1568,14 @@ export default function Loan() {
                       </Text>
                     </View>
                   )}
-                  {section.items.map((loan) => {
+                  {section.items.length === 0 ? (
+                    <View style={[styles.emptyContainer, { paddingVertical: 24 }]}>
+                      <Text style={styles.emptyText}>
+                        No loans found in this section.
+                      </Text>
+                    </View>
+                  ) : (
+                    section.items.map((loan) => {
                 const isExpanded = expandedLoanId === loan._id;
                 const remaining = Math.max(
                   0,
@@ -1498,7 +1989,8 @@ export default function Loan() {
                     </View>
                   </View>
                     );
-                  })}
+                  })
+                )}
                 </React.Fragment>
               ))
             )}
@@ -1507,119 +1999,141 @@ export default function Loan() {
       )}
 
       {/* Modal: Add / Edit Loan */}
-      <Modal visible={showLoanModal} transparent={true} animationType="slide">
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.modalContainer}
-            behavior="padding"
-          >
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              automaticallyAdjustKeyboardInsets
-            >
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>
-                    {selectedLoan ? "Edit Loan Account" : "Add Loan Account"}
-                  </Text>
-                  <TouchableOpacity onPress={() => setShowLoanModal(false)}>
-                    <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                  </TouchableOpacity>
-                </View>
-
-                <LoanForm
-                  initialData={selectedLoan}
-                  onSubmit={submitLoanForm}
-                  onCancel={() => setShowLoanModal(false)}
-                />
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+      <FormModal
+        visible={showLoanModal}
+        title={selectedLoan ? "Edit Loan Account" : "Add Loan Account"}
+        onClose={() => setShowLoanModal(false)}
+      >
+            <LoanForm
+              initialData={selectedLoan}
+              onSubmit={submitLoanForm}
+              onCancel={() => setShowLoanModal(false)}
+            />
+      </FormModal>
 
       {/* Modal: Record Repayment */}
-      <Modal
+      <FormModal
         visible={showRepaymentModal}
-        transparent={true}
-        animationType="slide"
+        title={editingRepayment ? "Edit Repayment" : "Record Repayment"}
+        subtitle={selectedLoan?.lenderName ? `to ${selectedLoan.lenderName}` : undefined}
+        onClose={() => setShowRepaymentModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.modalContainer}
-            behavior="padding"
-          >
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets
-            >
-              <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {editingRepayment ? "Edit Repayment" : "Record Repayment"}
-                </Text>
-                <Text style={styles.modalHeaderSubtitle}>
-                  to {selectedLoan?.lenderName}
-                </Text>
-                <TouchableOpacity onPress={() => setShowRepaymentModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                </TouchableOpacity>
-              </View>
-
-              {showRepaymentModal ? (
-                <RepaymentForm
-                  loan={selectedLoan}
-                  initialData={editingRepayment}
-                  formatCurrency={formatCurrency}
-                  onSubmit={submitRepaymentForm}
-                  onCancel={() => setShowRepaymentModal(false)}
-                />
-              ) : null}
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+            {showRepaymentModal ? (
+              <RepaymentForm
+                loan={selectedLoan}
+                initialData={editingRepayment}
+                formatCurrency={formatCurrency}
+                onSubmit={submitRepaymentForm}
+                onCancel={() => setShowRepaymentModal(false)}
+              />
+            ) : null}
+      </FormModal>
 
       {/* Modal: Add Interest Charge */}
-      <Modal
+      <FormModal
         visible={showInterestModal}
-        transparent={true}
-        animationType="slide"
+        title="Add Interest Charge"
+        subtitle={selectedLoan?.lenderName ? `for ${selectedLoan.lenderName}` : undefined}
+        onClose={() => setShowInterestModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.modalContainer}
-            behavior="padding"
-          >
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets
-            >
-              <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Interest Charge</Text>
-                <Text style={styles.modalHeaderSubtitle}>
-                  for {selectedLoan?.lenderName}
-                </Text>
-                <TouchableOpacity onPress={() => setShowInterestModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="#94a3b8" />
-                </TouchableOpacity>
-              </View>
+            <InterestForm
+              onSubmit={submitInterestForm}
+              onCancel={() => setShowInterestModal(false)}
+            />
+      </FormModal>
 
-              <InterestForm
-                onSubmit={submitInterestForm}
-                onCancel={() => setShowInterestModal(false)}
+      {/* Modal: Create / Edit Custom Group */}
+      <FormModal
+        visible={showCustomGroupModal}
+        title={editingCustomGroup ? "Edit Custom Group" : "New Custom Group"}
+        onClose={() => setShowCustomGroupModal(false)}
+      >
+            <FormField label="Group Name *">
+              <FormInput
+                value={customGroupNameInput}
+                onChangeText={setCustomGroupNameInput}
+                placeholder="e.g. Family Loans, Vehicle Debt, Personal"
               />
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+            </FormField>
+
+            <FormField label="Description (optional)">
+              <FormInput
+                value={customGroupDescInput}
+                onChangeText={setCustomGroupDescInput}
+                placeholder="Group notes or purpose"
+              />
+            </FormField>
+
+            <View style={{ marginTop: 6, marginBottom: 16 }}>
+              <Text style={styles.formLabel}>
+                Select Loans for this Group ({customGroupLoanIdsInput.length}{" "}
+                selected)
+              </Text>
+              {loans.length === 0 ? (
+                <Text style={styles.noLoansWarningText}>
+                  No loan accounts found. Add loans first.
+                </Text>
+              ) : (
+                <View style={styles.loanChecklistContainer}>
+                  {loans.map((loan) => {
+                    const isChecked = customGroupLoanIdsInput.includes(
+                      loan._id,
+                    );
+                    const remaining = Math.max(
+                      0,
+                      Number(loan.totalAmount || 0) -
+                        Number(loan.amountPaid || 0),
+                    );
+                    return (
+                      <TouchableOpacity
+                        key={loan._id}
+                        onPress={() => handleToggleLoanInGroup(loan._id)}
+                        style={[
+                          styles.loanCheckItem,
+                          isChecked && styles.loanCheckItemChecked,
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.checkboxBox,
+                            isChecked && styles.checkboxBoxChecked,
+                          ]}
+                        >
+                          {isChecked && (
+                            <Ionicons
+                              name="checkmark"
+                              size={14}
+                              color="#ffffff"
+                            />
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.loanCheckLender}>
+                            {loan.lenderName}
+                          </Text>
+                          <Text style={styles.loanCheckSub}>
+                            Principal:{" "}
+                            {formatCurrency(
+                              loan.principalAmount || loan.totalAmount,
+                            )}{" "}
+                            · Remaining: {formatCurrency(remaining)}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            <FormActions
+              submitLabel={
+                editingCustomGroup ? "Update Group" : "Create Group"
+              }
+              onSubmit={handleSaveCustomGroup}
+              onCancel={() => setShowCustomGroupModal(false)}
+            />
+      </FormModal>
 
       {/* Floating Action Button (FAB) */}
       <TouchableOpacity style={styles.fab} onPress={handleOpenAddLoanModal}>
@@ -1629,32 +2143,16 @@ export default function Loan() {
   );
 }
 
-const formStyles = StyleSheet.create({
-  field: { marginBottom: 16 },
-  label: { color: "#cbd5e1", fontSize: 13, fontWeight: "600", marginBottom: 7 },
-  input: {
-    minHeight: 46,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#2b3a4e",
-    color: "#f8fafc",
-    backgroundColor: "#0f1d2d",
-    paddingHorizontal: 13,
-    fontSize: 15,
-  },
-  error: { color: "#fca5a5", fontSize: 12, marginTop: 6 },
-  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  choice: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 18,
+
+const styles = StyleSheet.create({
+  formLabel: { color: "#cbd5e1", fontSize: 13, fontWeight: "600", marginBottom: 7 },
+  summary: {
     backgroundColor: "#172233",
-    borderWidth: 1,
-    borderColor: "#2b3a4e",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
   },
-  choiceActive: { backgroundColor: "#0c4a6e", borderColor: "#38bdf8" },
-  choiceText: { color: "#94a3b8", fontSize: 12 },
-  choiceTextActive: { color: "#e0f2fe", fontWeight: "700" },
+  summaryText: { color: "#cbd5e1", fontWeight: "700" },
   dropdownTrigger: {
     minHeight: 46,
     borderRadius: 10,
@@ -1691,35 +2189,8 @@ const formStyles = StyleSheet.create({
   dropdownOptionSelected: { backgroundColor: "#0c4a6e" },
   dropdownOptionText: { color: "#cbd5e1", fontSize: 14 },
   dropdownOptionTextSelected: { color: "#e0f2fe", fontWeight: "700" },
-  actions: { flexDirection: "row", gap: 12, marginTop: 8 },
-  cancel: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 13,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  cancelText: { color: "#cbd5e1", fontWeight: "700" },
-  submit: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 13,
-    borderRadius: 10,
-    backgroundColor: "#e11d48",
-  },
-  submitText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
-  summary: {
-    backgroundColor: "#172233",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-  },
-  summaryText: { color: "#cbd5e1", fontWeight: "700" },
-});
 
-const styles = StyleSheet.create({
+
   screen: {
     flex: 1,
     backgroundColor: "#081421",
@@ -2083,41 +2554,6 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 9,
     fontWeight: "700",
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(8, 20, 33, 0.6)",
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#172233",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#2b3a4e",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalHeaderSubtitle: {
-    fontSize: 12,
-    color: "#94a3b8",
-    marginLeft: 8,
-    marginTop: 2,
-    flex: 1,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#ffffff",
   },
   inputLabel: {
     fontSize: 12,
@@ -2581,5 +3017,312 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: "center",
     alignItems: "center",
+  },
+  // Custom Groups Styles
+  customGroupSection: {
+    marginBottom: 20,
+  },
+  groupChipsRow: {
+    marginBottom: 16,
+  },
+  groupChipsScroll: {
+    gap: 8,
+    alignItems: "center",
+  },
+  groupChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: "#172233",
+    borderWidth: 1,
+    borderColor: "#2b3a4e",
+  },
+  groupChipActive: {
+    backgroundColor: "#0c4a6e",
+    borderColor: "#38bdf8",
+  },
+  groupChipText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  groupChipTextActive: {
+    color: "#f0f9ff",
+    fontWeight: "700",
+  },
+  groupChipBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+  },
+  groupChipBadgeActive: {
+    backgroundColor: "rgba(56, 189, 248, 0.25)",
+  },
+  groupChipBadgeText: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  groupChipBadgeTextActive: {
+    color: "#38bdf8",
+  },
+  newGroupBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderStyle: "dashed",
+  },
+  newGroupBtnText: {
+    color: "#34d399",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  emptyGroupCard: {
+    backgroundColor: "#111a2e",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#2b3a4e",
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  emptyGroupIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  emptyGroupTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#ffffff",
+    marginBottom: 6,
+  },
+  emptyGroupSubtitle: {
+    fontSize: 13,
+    color: "#94a3b8",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 18,
+    paddingHorizontal: 12,
+  },
+  createGroupPrimaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#0284c7",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+  },
+  createGroupPrimaryBtnText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  activeGroupContainer: {
+    backgroundColor: "#111a2e",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#2b3a4e",
+    padding: 16,
+  },
+  activeGroupHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
+  activeGroupName: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  activeGroupDesc: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginTop: 4,
+  },
+  activeGroupCountPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+  },
+  activeGroupCountText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#38bdf8",
+  },
+  activeGroupActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  groupActionBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "#172233",
+    borderWidth: 1,
+    borderColor: "#2b3a4e",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  groupActionBtnDelete: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
+  groupKpiGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  groupKpiCard: {
+    width: "48%",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  groupKpiCardFull: {
+    width: "100%",
+  },
+  groupKpiTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  groupKpiLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "rgba(255, 255, 255, 0.7)",
+    letterSpacing: 0.6,
+  },
+  groupKpiValue: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#ffffff",
+  },
+  groupKpiSub: {
+    fontSize: 10,
+    color: "rgba(255, 255, 255, 0.6)",
+    marginTop: 3,
+  },
+  groupProgressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  groupRepaidText: {
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.7)",
+    fontWeight: "600",
+  },
+  groupProgressBarTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    overflow: "hidden",
+  },
+  groupProgressBarFill: {
+    height: "100%",
+    backgroundColor: "#34d399",
+    borderRadius: 3,
+  },
+  noLoansInGroupCard: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "#172233",
+    borderWidth: 1,
+    borderColor: "#2b3a4e",
+    alignItems: "center",
+    gap: 6,
+  },
+  noLoansInGroupText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+  },
+  btnAssignLoans: {
+    marginTop: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: "#0284c7",
+  },
+  btnAssignLoansText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  loanChecklistContainer: {
+    gap: 8,
+    marginTop: 4,
+  },
+  loanCheckItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "#0f1d2d",
+    borderWidth: 1,
+    borderColor: "#2b3a4e",
+  },
+  loanCheckItemChecked: {
+    borderColor: "#38bdf8",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+  },
+  checkboxBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "#475569",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#172233",
+  },
+  checkboxBoxChecked: {
+    backgroundColor: "#0284c7",
+    borderColor: "#38bdf8",
+  },
+  loanCheckLender: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  loanCheckSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  noLoansWarningText: {
+    fontSize: 12,
+    color: "#f59e0b",
+    fontStyle: "italic",
+    paddingVertical: 8,
   },
 });
