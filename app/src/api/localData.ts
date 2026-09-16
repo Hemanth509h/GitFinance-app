@@ -16,7 +16,7 @@ const WEB_PREFIX = "gig-finance:";
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
 let activeSync: Promise<number> | undefined;
 
-type SyncResult = { synced: number; updated: boolean };
+type SyncResult = { synced: number; updated: boolean; pending: number };
 type SyncListener = (result: SyncResult) => void;
 const syncListeners = new Set<SyncListener>();
 
@@ -155,6 +155,20 @@ export async function enqueue(
   );
 }
 
+export async function getPendingOutboxCount(): Promise<number> {
+  if (Platform.OS === "web") {
+    const queue: OutboxRow[] = JSON.parse(
+      globalThis.localStorage?.getItem(`${WEB_PREFIX}outbox`) ?? "[]",
+    );
+    return queue.length;
+  }
+  const db = await database();
+  const row = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM outbox",
+  );
+  return row?.count ?? 0;
+}
+
 async function outbox(): Promise<OutboxRow[]> {
   if (Platform.OS === "web") {
     return JSON.parse(globalThis.localStorage?.getItem(`${WEB_PREFIX}outbox`) ?? "[]");
@@ -244,23 +258,48 @@ async function replaceLocalId(localId: string, remoteId: string): Promise<void> 
     await setCached(key, next);
   }
 
-  if (Platform.OS !== "web") {
+  // Move repayment cache if it was keyed by the temporary loan id.
+  const localRepayKey = `loan-repayments:${localId}`;
+  const repayments = await getCached<any[]>(localRepayKey);
+  if (repayments) {
+    await setCached(`loan-repayments:${remoteId}`, repayments);
+    await invalidateCache(localRepayKey);
+  }
+
+  // Rewrite any later outbox rows that still reference the temporary local id
+  // (e.g. create loan → add repayment while offline).
+  const pending = await outbox();
+  if (Platform.OS === "web") {
+    const key = `${WEB_PREFIX}outbox`;
+    const queue = pending.map((row) => ({
+      ...row,
+      url: row.url.replaceAll(localId, remoteId),
+      body: row.body?.replaceAll(localId, remoteId) ?? null,
+    }));
+    globalThis.localStorage?.setItem(key, JSON.stringify(queue));
+  } else {
     const db = await database();
-    const pending = await db.getAllAsync<OutboxRow>("SELECT id, url, body FROM outbox");
     for (const item of pending) {
       const url = item.url.replaceAll(localId, remoteId);
       const body = item.body?.replaceAll(localId, remoteId) ?? null;
+      if (url === item.url && body === item.body) continue;
       await db.runAsync("UPDATE outbox SET url = ?, body = ? WHERE id = ?", url, body, item.id);
     }
   }
 }
 
-/** Replays local mutations in order. A failed request stays queued for the next sync. */
+/** Replays local mutations in order. Always re-reads the queue head so
+ * local→remote id rewrites from earlier posts are picked up. A failed
+ * request stays queued for the next sync. */
 export function syncPending(client: AxiosInstance): Promise<number> {
   if (activeSync) return activeSync;
   activeSync = (async () => {
     let synced = 0;
-    for (const item of await outbox()) {
+    while (true) {
+      const items = await outbox();
+      if (items.length === 0) break;
+
+      const item = items[0];
       try {
         const response = await client.request({
           method: item.method,
@@ -278,6 +317,7 @@ export function syncPending(client: AxiosInstance): Promise<number> {
         await removeOutboxItem(item.id);
         synced += 1;
       } catch {
+        // Stop on first failure so ordering is preserved; remaining stay queued.
         break;
       }
     }

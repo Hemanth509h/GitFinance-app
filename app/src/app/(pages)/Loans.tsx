@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { api, syncLocalData } from "../../api";
+import { api } from "../../api";
 import {
   FormActions,
   FormChoices,
@@ -139,14 +139,6 @@ function RepaymentForm({
     method: initialData?.method || "Cash",
     note: initialData?.note || initialData?.description || "",
   }));
-  const [workEntries, setWorkEntries] = useState<any[]>([]);
-  const [workEntryId, setWorkEntryId] = useState(() =>
-    typeof initialData?.workEntryId === "object"
-      ? initialData.workEntryId?._id || ""
-      : initialData?.workEntryId || "",
-  );
-  const [loadingEntries, setLoadingEntries] = useState(true);
-  const [showWorkLogMenu, setShowWorkLogMenu] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const set = (key: string, value: string) =>
@@ -156,23 +148,6 @@ function RepaymentForm({
     Number(loan?.totalAmount || 0) -
       Number(loan?.amountPaid || 0) +
       Number(initialData?.amount || 0),
-  );
-  useFocusEffect(
-    React.useCallback(() => {
-      let isMounted = true;
-      api
-        .getWorkLogs()
-        .then(({ data: entries }) => {
-          if (isMounted) setWorkEntries(entries || []);
-        })
-        .catch((error) => console.error("Failed to load work logs", error))
-        .finally(() => {
-          if (isMounted) setLoadingEntries(false);
-        });
-      return () => {
-        isMounted = false;
-      };
-    }, []),
   );
   const submit = async () => {
     const amount = Number(data.amount);
@@ -188,7 +163,6 @@ function RepaymentForm({
         ...data,
         amount,
         note: data.note.trim(),
-        workEntryId: workEntryId || undefined,
         type: "Repayment",
         status: "Success",
       });
@@ -196,22 +170,6 @@ function RepaymentForm({
       setSubmitting(false);
     }
   };
-  const selectedWorkEntry = workEntries.find(
-    (entry) => String(entry._id || entry.id) === String(workEntryId),
-  );
-  const formatWorkLogDate = (date: string) => {
-    const parsed = new Date(date);
-    return Number.isNaN(parsed.getTime())
-      ? date
-      : parsed.toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        });
-  };
-  const workLogLabel = selectedWorkEntry
-    ? `${formatWorkLogDate(selectedWorkEntry.date)} · ${selectedWorkEntry.client || "Work log"} · ${formatCurrency(Number(selectedWorkEntry.amount || 0))}`
-    : "None";
   return (
     <>
       <View style={styles.summary}>
@@ -240,71 +198,6 @@ function RepaymentForm({
           options={["Cash", "Card", "Bank Transfer", "UPI"]}
           onChange={(v) => set("method", v)}
         />
-      </FormField>
-      <FormField label="Link to work log (optional)">
-        {loadingEntries ? (
-          <ActivityIndicator size="small" color="#10b981" />
-        ) : (
-          <View>
-            <TouchableOpacity
-              onPress={() => setShowWorkLogMenu((visible) => !visible)}
-              style={styles.dropdownTrigger}
-            >
-              <Text numberOfLines={1} style={styles.dropdownTriggerText}>
-                {workLogLabel}
-              </Text>
-              <Ionicons
-                name={showWorkLogMenu ? "chevron-up" : "chevron-down"}
-                size={18}
-                color="#94a3b8"
-              />
-            </TouchableOpacity>
-            {showWorkLogMenu ? (
-              <View style={styles.dropdownMenu}>
-                <ScrollView nestedScrollEnabled style={styles.dropdownList}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setWorkEntryId("");
-                      setShowWorkLogMenu(false);
-                    }}
-                    style={styles.dropdownOption}
-                  >
-                    <Text style={styles.dropdownOptionText}>None</Text>
-                  </TouchableOpacity>
-                  {workEntries.map((entry) => {
-                    const id = entry._id || entry.id;
-                    return (
-                      <TouchableOpacity
-                        key={id}
-                        onPress={() => {
-                          setWorkEntryId(id);
-                          setShowWorkLogMenu(false);
-                        }}
-                        style={[
-                          styles.dropdownOption,
-                          workEntryId === id &&
-                            styles.dropdownOptionSelected,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.dropdownOptionText,
-                            workEntryId === id &&
-                              styles.dropdownOptionTextSelected,
-                          ]}
-                        >
-                          {formatWorkLogDate(entry.date)} ·{" "}
-                          {entry.client || "Work log"} ·{" "}
-                          {formatCurrency(Number(entry.amount || 0))}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            ) : null}
-          </View>
-        )}
       </FormField>
       <FormField label="Notes">
         <FormInput
@@ -466,7 +359,6 @@ export default function Loan() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await syncLocalData().catch(() => {});
     await fetchLoans();
     if (expandedLoanId) {
       fetchRepayments(expandedLoanId);
@@ -1948,32 +1840,6 @@ export default function Loan() {
                                                   </TouchableOpacity>
                                                 </View>
                                               </View>
-                                              {!isInterest &&
-                                                tx.workEntryId && (
-                                                  <View
-                                                    style={
-                                                      styles.ledgerWorkLogLink
-                                                    }
-                                                  >
-                                                    <Ionicons
-                                                      name="document-text-outline"
-                                                      size={14}
-                                                      color="#10b981"
-                                                    />
-                                                    <Text
-                                                      style={
-                                                        styles.ledgerWorkLogLinkText
-                                                      }
-                                                    >
-                                                      Work log:{" "}
-                                                      {tx.workEntryId.client ||
-                                                        "Linked work log"}
-                                                      {tx.workEntryId.date
-                                                        ? ` · ${formatDateShort(tx.workEntryId.date)}`
-                                                        : ""}
-                                                    </Text>
-                                                  </View>
-                                                )}
                                             </React.Fragment>
                                           );
                                         })}
@@ -2153,43 +2019,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   summaryText: { color: "#cbd5e1", fontWeight: "700" },
-  dropdownTrigger: {
-    minHeight: 46,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#2b3a4e",
-    backgroundColor: "#0f1d2d",
-    paddingHorizontal: 13,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dropdownTriggerText: {
-    color: "#f8fafc",
-    flex: 1,
-    marginRight: 8,
-    fontSize: 15,
-  },
-  dropdownMenu: {
-    marginTop: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#2b3a4e",
-    backgroundColor: "#0f1d2d",
-    overflow: "hidden",
-  },
-  dropdownList: { maxHeight: 180 },
-  dropdownOption: {
-    minHeight: 44,
-    paddingHorizontal: 13,
-    justifyContent: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
-  },
-  dropdownOptionSelected: { backgroundColor: "#0c4a6e" },
-  dropdownOptionText: { color: "#cbd5e1", fontSize: 14 },
-  dropdownOptionTextSelected: { color: "#e0f2fe", fontWeight: "700" },
-
 
   screen: {
     flex: 1,
@@ -2895,21 +2724,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#f87171",
-  },
-  ledgerWorkLogLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 14,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#1e2d40",
-  },
-  ledgerWorkLogLinkText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#10b981",
   },
   btnToggleHistory: {
     borderWidth: 1,

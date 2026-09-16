@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { api, syncLocalData } from "../../api";
+import { api } from "../../api";
 import { MetricTile } from "../../components/ui/MetricTile";
 import { ListSkeleton } from "../../components/ui/Skeleton";
 import { useAuth } from "../../context/AuthContext";
@@ -48,7 +48,25 @@ function Badge({ status }: { status: string }) {
 }
 
 // ── Custom Analytics Chart Component ──
-function AnalyticsChart({ data }: { data: any[] }) {
+function AnalyticsChart({
+  data,
+  formatCurrency,
+}: {
+  data: any[];
+  formatCurrency: (amount: number) => string;
+}) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (!data?.length) {
+      setSelectedIndex(null);
+      return;
+    }
+    setSelectedIndex((prev) =>
+      prev !== null && prev < data.length ? prev : data.length - 1,
+    );
+  }, [data]);
+
   if (!data || data.length === 0) {
     return (
       <View style={styles.noChartContainer}>
@@ -68,55 +86,146 @@ function AnalyticsChart({ data }: { data: any[] }) {
     100,
   );
 
+  const selected =
+    selectedIndex !== null && selectedIndex >= 0 && selectedIndex < data.length
+      ? data[selectedIndex]
+      : null;
+  const selectedEarnings = Number(selected?.earnings || 0);
+  const selectedExpenses = Number(selected?.expenses || 0);
+  const selectedRepayments = Number(selected?.repayments || 0);
+  const selectedNet = selectedEarnings - selectedExpenses - selectedRepayments;
+  const selectedMonthLabel =
+    selected?.label ||
+    (selected?.month && String(selected.month).includes("-")
+      ? String(selected.month).split("-")[1]
+      : selected?.month) ||
+    "";
+
   return (
-    <View style={styles.chartWrapper}>
-      {data.map((item, index) => {
-        const earnPct = ((item.earnings || 0) / maxVal) * 100;
-        const expPct = ((item.expenses || 0) / maxVal) * 100;
-        const repPct = ((item.repayments || 0) / maxVal) * 100;
+    <View>
+      <View style={styles.chartWrapper}>
+        {data.map((item, index) => {
+          const earnPct = ((item.earnings || 0) / maxVal) * 100;
+          const expPct = ((item.expenses || 0) / maxVal) * 100;
+          const repPct = ((item.repayments || 0) / maxVal) * 100;
+          const isSelected = selectedIndex === index;
 
-        const monthLabel =
-          item.label ||
-          (item.month && item.month.includes("-")
-            ? item.month.split("-")[1]
-            : item.month) ||
-          "";
+          const monthLabel =
+            item.label ||
+            (item.month && item.month.includes("-")
+              ? item.month.split("-")[1]
+              : item.month) ||
+            "";
 
-        return (
-          <View key={index} style={styles.chartCol}>
-            <View style={styles.barsContainer}>
-              <View
+          return (
+            <TouchableOpacity
+              key={index}
+              style={[styles.chartCol, isSelected && styles.chartColSelected]}
+              activeOpacity={0.75}
+              onPress={() =>
+                setSelectedIndex((prev) => (prev === index ? null : index))
+              }
+            >
+              <View style={styles.barsContainer}>
+                <View
+                  style={[
+                    styles.chartBar,
+                    {
+                      height: `${Math.max(earnPct, 4)}%`,
+                      backgroundColor: "#34d399",
+                      opacity: isSelected || selectedIndex === null ? 1 : 0.45,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.chartBar,
+                    {
+                      height: `${Math.max(expPct, 4)}%`,
+                      backgroundColor: "#f97316",
+                      opacity: isSelected || selectedIndex === null ? 1 : 0.45,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.chartBar,
+                    {
+                      height: `${Math.max(repPct, 4)}%`,
+                      backgroundColor: "#f87171",
+                      opacity: isSelected || selectedIndex === null ? 1 : 0.45,
+                    },
+                  ]}
+                />
+              </View>
+              <Text
                 style={[
-                  styles.chartBar,
-                  {
-                    height: `${Math.max(earnPct, 4)}%`,
-                    backgroundColor: "#34d399",
-                  },
+                  styles.chartLabel,
+                  isSelected && styles.chartLabelSelected,
                 ]}
-              />
+              >
+                {monthLabel}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {selected ? (
+        <View style={styles.chartDetails}>
+          <Text style={styles.chartDetailsTitle}>
+            {selectedMonthLabel} details
+          </Text>
+          <View style={styles.chartDetailsGrid}>
+            <View style={styles.chartDetailItem}>
               <View
-                style={[
-                  styles.chartBar,
-                  {
-                    height: `${Math.max(expPct, 4)}%`,
-                    backgroundColor: "#f97316",
-                  },
-                ]}
+                style={[styles.legendDot, { backgroundColor: "#34d399" }]}
               />
-              <View
-                style={[
-                  styles.chartBar,
-                  {
-                    height: `${Math.max(repPct, 4)}%`,
-                    backgroundColor: "#f87171",
-                  },
-                ]}
-              />
+              <Text style={styles.chartDetailLabel}>Earnings</Text>
+              <Text style={[styles.chartDetailValue, { color: "#34d399" }]}>
+                {formatCurrency(selectedEarnings)}
+              </Text>
             </View>
-            <Text style={styles.chartLabel}>{monthLabel}</Text>
+            <View style={styles.chartDetailItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: "#f97316" }]}
+              />
+              <Text style={styles.chartDetailLabel}>Expenses</Text>
+              <Text style={[styles.chartDetailValue, { color: "#f97316" }]}>
+                {formatCurrency(selectedExpenses)}
+              </Text>
+            </View>
+            <View style={styles.chartDetailItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: "#f87171" }]}
+              />
+              <Text style={styles.chartDetailLabel}>Repayments</Text>
+              <Text style={[styles.chartDetailValue, { color: "#f87171" }]}>
+                {formatCurrency(selectedRepayments)}
+              </Text>
+            </View>
+            <View style={styles.chartDetailItem}>
+              <View
+                style={[styles.legendDot, { backgroundColor: "#38bdf8" }]}
+              />
+              <Text style={styles.chartDetailLabel}>Net</Text>
+              <Text
+                style={[
+                  styles.chartDetailValue,
+                  { color: selectedNet >= 0 ? "#34d399" : "#f87171" },
+                ]}
+              >
+                {formatCurrency(selectedNet)}
+              </Text>
+            </View>
           </View>
-        );
-      })}
+          <Text style={styles.chartDetailsHint}>Tap a month bar to switch</Text>
+        </View>
+      ) : (
+        <Text style={styles.chartDetailsHint}>
+          Tap a month bar to see details
+        </Text>
+      )}
     </View>
   );
 }
@@ -177,7 +286,6 @@ export default function Dashboard() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await syncLocalData().catch(() => {});
     await fetchData();
   };
 
@@ -378,7 +486,7 @@ export default function Dashboard() {
               </View>
             </LinearGradient>
             <View style={styles.sectionBody}>
-              <AnalyticsChart data={analytics} />
+              <AnalyticsChart data={analytics} formatCurrency={formatCurrency} />
             </View>
           </View>
 
@@ -710,6 +818,11 @@ const styles = StyleSheet.create({
   chartCol: {
     alignItems: "center",
     width: 44,
+    borderRadius: 8,
+    paddingVertical: 4,
+  },
+  chartColSelected: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
   },
   barsContainer: {
     flexDirection: "row",
@@ -728,6 +841,46 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     marginTop: 6,
     fontWeight: "600",
+  },
+  chartLabelSelected: {
+    color: "#38bdf8",
+    fontWeight: "800",
+  },
+  chartDetails: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#2b3a4e",
+  },
+  chartDetailsTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#f8fafc",
+    marginBottom: 10,
+  },
+  chartDetailsGrid: {
+    gap: 8,
+  },
+  chartDetailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  chartDetailLabel: {
+    flex: 1,
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: "600",
+  },
+  chartDetailValue: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  chartDetailsHint: {
+    marginTop: 10,
+    fontSize: 11,
+    color: "#64748b",
+    textAlign: "center",
   },
   goalRow: {
     flexDirection: "row",

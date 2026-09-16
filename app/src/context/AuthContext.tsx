@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { router } from 'expo-router';
-import { api, syncLocalData } from '../api';
+import { api } from '../api';
 import { clearLocalData } from '../api/localData';
 import { getToken, setToken, removeToken } from '../api/storage';
 
@@ -66,7 +66,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (token) {
         await setToken(token);
         await fetchCurrentUser();
-        void syncLocalData().catch(() => {});
       } else {
         throw new Error("No token returned from login response.");
       }
@@ -86,7 +85,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (token) {
         await setToken(token);
         await fetchCurrentUser();
-        void syncLocalData().catch(() => {});
       }
     } catch (err) {
       setUser(null);

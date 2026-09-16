@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { api, syncLocalData } from "../api";
+import { api } from "../api";
 
 export default function ServerHealth() {
     useEffect(() => {
@@ -12,8 +12,6 @@ export default function ServerHealth() {
                 if (!isMounted) return;
 
                 if (res && res.status === 200) {
-                    // When server is online, trigger pending sync in background
-                    void syncLocalData().catch(() => {});
                     // Recheck in 10 minutes
                     healthTimeout = setTimeout(checkHealth, 10 * 60 * 1000);
                 } else {

@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { api, syncLocalData } from "../../api";
+import { api } from "../../api";
 import {
   FormActions,
   FormChoices,
@@ -202,7 +202,6 @@ export default function Expenses() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await syncLocalData().catch(() => {});
     await fetchExpenses();
   };
 

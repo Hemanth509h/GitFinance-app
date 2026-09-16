@@ -75,8 +75,15 @@ router.post("/forgot-password", async (req, res) => {
 router.get("/me", (req, res) => res.json(userPayload(req.user!)));
 
 router.patch("/profile", async (req, res) => {
-  const { name, currency, monthlyGoal, theme, password, currentPassword } =
-    req.body;
+  const {
+    name,
+    email,
+    currency,
+    monthlyGoal,
+    theme,
+    password,
+    currentPassword,
+  } = req.body;
   try {
     const user = await User.findById(req.user!._id);
     if (!user) return res.status(404).json({ message: "User not found." });
@@ -84,6 +91,29 @@ router.patch("/profile", async (req, res) => {
     if (currency !== undefined) user.currency = currency;
     if (monthlyGoal !== undefined) user.monthlyGoal = monthlyGoal;
     if (theme !== undefined) user.theme = theme;
+
+    const nextEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : undefined;
+    if (nextEmail !== undefined && nextEmail !== user.email) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+        return res.status(400).json({ message: "Enter a valid email address." });
+      }
+      if (!currentPassword) {
+        return res
+          .status(400)
+          .json({ message: "Current password required to change email." });
+      }
+      if (!(await user.comparePassword(currentPassword))) {
+        return res
+          .status(401)
+          .json({ message: "Current password is incorrect." });
+      }
+      if (await User.findOne({ email: nextEmail })) {
+        return res.status(409).json({ message: "Email already registered." });
+      }
+      user.email = nextEmail;
+    }
+
     if (password) {
       if (!currentPassword)
         return res.status(400).json({ message: "Current password required." });

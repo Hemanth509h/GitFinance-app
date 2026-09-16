@@ -3,7 +3,7 @@ import {
   createLocalId,
   enqueue,
   getCached,
-  invalidateCache,
+  getPendingOutboxCount,
   notifyDataSynced,
   onDataSynced,
   setCached,
@@ -11,7 +11,7 @@ import {
 } from "./localData";
 import { getToken } from "./storage";
 
-export { onDataSynced };
+export { onDataSynced, getPendingOutboxCount };
 
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
@@ -40,23 +40,11 @@ client.interceptors.request.use(async (config) => {
 
 type LocalCollection = "work-logs" | "expenses" | "loans";
 
+/** Pages always read SQLite/localStorage. Network is only used on first
+ * cache miss (bootstrap) or when the user taps Sync in Settings. */
 async function readCollection(collection: LocalCollection, request: () => Promise<any>) {
   const cached = await getCached<any[]>(collection);
-
-  // Background fetch to keep SQLite updated with server changes
-  const fetchFresh = async () => {
-    try {
-      const response = await request();
-      if (response && response.data !== undefined) {
-        await setCached(collection, response.data ?? []);
-      }
-    } catch {
-      // Offline or network error; keep SQLite cache intact
-    }
-  };
-
   if (cached !== null) {
-    void fetchFresh();
     return { data: cached };
   }
 
@@ -64,20 +52,10 @@ async function readCollection(collection: LocalCollection, request: () => Promis
     const response = await request();
     await setCached(collection, response.data ?? []);
     return response;
-  } catch (error) {
-    // If initial fetch fails offline, return empty list gracefully
+  } catch {
+    // Offline with no local data yet.
     return { data: [] };
   }
-}
-
-/** Keys that aggregate data across collections — always stale after a mutation. */
-const DASHBOARD_KEYS = [
-  "dashboard-summary",
-  "dashboard-analytics",
-];
-
-async function invalidateDashboard() {
-  await Promise.all(DASHBOARD_KEYS.map(invalidateCache));
 }
 
 async function mutateCollection(
@@ -104,29 +82,14 @@ async function mutateCollection(
   }
 
   await enqueue(method, url, data, localId);
-  // Invalidate aggregated caches so dashboard reflects changes immediately.
-  void invalidateDashboard();
-  // Sync is deliberately best-effort: a mutation has already been saved on-device.
-  void syncPending(client);
+  // Mutations stay queued until Sync. Dashboard caches refresh on Sync only
+  // so a server pull cannot wipe unsynced local rows.
   return { data: responseData };
 }
 
 async function cachedRequest(key: string, request: () => Promise<any>) {
   const cached = await getCached<any>(key);
-
-  const fetchFresh = async () => {
-    try {
-      const response = await request();
-      if (response && response.data !== undefined) {
-        await setCached(key, response.data);
-      }
-    } catch {
-      // Offline; keep SQLite cache intact
-    }
-  };
-
   if (cached !== null) {
-    void fetchFresh();
     return { data: cached };
   }
 
@@ -134,7 +97,7 @@ async function cachedRequest(key: string, request: () => Promise<any>) {
     const response = await request();
     await setCached(key, response.data);
     return response;
-  } catch (error) {
+  } catch {
     return { data: null };
   }
 }
@@ -186,11 +149,6 @@ async function mutateCachedList(
     responseData = { message: "Deleted locally" };
   }
   await enqueue(method, url, data, localId);
-  void invalidateDashboard();
-  if (key.startsWith("loan-repayments:")) {
-    void invalidateCache("loans");
-  }
-  void syncPending(client);
   return { data: responseData };
 }
 
@@ -199,7 +157,6 @@ async function mutateCachedObject(key: string, url: string, data: any) {
   const next = { ...current, ...data };
   await setCached(key, next);
   await enqueue("patch", url, data);
-  void syncPending(client);
   return { data: next };
 }
 
@@ -208,30 +165,48 @@ export async function syncLocalData(): Promise<number> {
 
   activeFullSync = (async () => {
     const synced = await syncPending(client);
-    const resources: [string, () => Promise<any>][] = [
-      ["work-logs", () => client.get("/work-logs")],
-      ["expenses", () => client.get("/expenses")],
-      ["loans", () => client.get("/loans")],
-      ["dashboard-summary", () => client.get("/dashboard/summary")],
-      ["dashboard-analytics", () => client.get("/dashboard/analytics")],
-      ["profile", () => client.get("/auth/me")],
-    ];
+    const pendingAfterPush = await getPendingOutboxCount();
 
-    const results = await Promise.allSettled(
-      resources.map(async ([key, request]) => refreshCollection(key, request)),
-    );
+    // Only pull server → local when the outbox is clear. Otherwise a pull
+    // would overwrite rows that still have not been pushed.
+    let updated = false;
+    if (pendingAfterPush === 0) {
+      const resources: [string, () => Promise<any>][] = [
+        ["work-logs", () => client.get("/work-logs")],
+        ["expenses", () => client.get("/expenses")],
+        ["loans", () => client.get("/loans")],
+        ["dashboard-summary", () => client.get("/dashboard/summary")],
+        ["dashboard-analytics", () => client.get("/dashboard/analytics")],
+        ["profile", () => client.get("/auth/me")],
+      ];
 
-    const updated = results.some(
-      (result) => result.status === "fulfilled" && result.value.changed,
-    );
+      const results = await Promise.allSettled(
+        resources.map(async ([key, request]) => refreshCollection(key, request)),
+      );
 
-    notifyDataSynced({ synced, updated: updated || synced > 0 });
+      updated = results.some(
+        (result) => result.status === "fulfilled" && result.value.changed,
+      );
+    }
+
+    if (pendingAfterPush === 0) {
+      await setCached("last-synced-at", Date.now());
+    }
+    notifyDataSynced({
+      synced,
+      updated: updated || synced > 0,
+      pending: pendingAfterPush,
+    });
     return synced;
   })();
 
   return activeFullSync.finally(() => {
     activeFullSync = undefined;
   });
+}
+
+export async function getLastSyncedAt(): Promise<number | null> {
+  return getCached<number>("last-synced-at");
 }
 
 export const api = {
@@ -264,11 +239,18 @@ export const api = {
   getMe: () =>
     cachedRequest("profile", () => client.get("/auth/me")),
 
-  updateProfile: (data: any) =>
-    // Password changes still use this durable queue, but passwords are never cached.
-    data.password
-      ? client.patch("/auth/profile", data)
-      : mutateCachedObject("profile", "/auth/profile", data),
+  updateProfile: async (data: any) => {
+    // Password / email changes go online immediately and refresh local profile.
+    if (data.password || data.email) {
+      const response = await client.patch("/auth/profile", data);
+      if (response?.data) {
+        const current = (await getCached<any>("profile")) ?? {};
+        await setCached("profile", { ...current, ...response.data });
+      }
+      return response;
+    }
+    return mutateCachedObject("profile", "/auth/profile", data);
+  },
 
   // ==================== Dashboard ====================
   getDashboardSummary: () =>
