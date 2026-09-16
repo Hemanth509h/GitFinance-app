@@ -7,7 +7,11 @@ import { AuthProvider } from "../context/AuthContext";
 
 function LocalSync() {
   useEffect(() => {
-    return onDataSynced(({ synced, updated, pending }) => {
+    return onDataSynced(({ synced, updated, pending, error, authExpired }) => {
+      if (error) {
+        toast.error(error);
+        return;
+      }
       if (pending > 0) {
         toast.error(
           pending === 1
@@ -22,7 +26,7 @@ function LocalSync() {
         );
       } else if (updated) {
         toast.info("Data updated from server.");
-      } else {
+      } else if (!authExpired) {
         toast.success("Everything is up to date.");
       }
     });

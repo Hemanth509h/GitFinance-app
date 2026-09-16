@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { api } from '../api';
-import { clearLocalData } from '../api/localData';
+import { clearLocalData, getCached } from '../api/localData';
 import { getToken, setToken, removeToken } from '../api/storage';
 
 interface User {
@@ -18,26 +18,65 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** End session without wiping pending outbox (e.g. expired JWT during sync). */
+  endSession: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function normalizeUser(data: any): User | null {
+  if (!data) return null;
+  if (data.user) return data.user as User;
+  return data as User;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchCurrentUser = async () => {
+  const endSession = async () => {
+    setUser(null);
+    await removeToken();
+    // Keep cache + outbox so unsynced edits remain visible and can push after
+    // the user logs in again. Intentional logout still wipes everything.
     try {
-      const response = await api.getMe();
-      if (response.data?.user) {
-        setUser(response.data.user);
-      } else if (response.data) {
-        setUser(response.data);
+      await router.replace('/login');
+    } catch {
+      // no-op if navigation is unavailable
+    }
+  };
+
+  const fetchCurrentUser = async (options?: { allowCachedFallback?: boolean }) => {
+    try {
+      // Always validate the token online — cached profile must not hide expiry.
+      const response = await api.getMeOnline();
+      const next = normalizeUser(response.data);
+      if (next) {
+        setUser(next);
+        return;
       }
-    } catch (err) {
-      console.warn("Failed to fetch current user profile:", err);
-      await logout();
+      await endSession();
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        await endSession();
+        return;
+      }
+
+      // Offline / server unreachable: keep the session if we still have a
+      // cached profile, otherwise clear.
+      if (options?.allowCachedFallback !== false) {
+        const cached = await getCached<any>('profile');
+        const next = normalizeUser(cached);
+        if (next) {
+          setUser(next);
+          return;
+        }
+      }
+
+      console.warn('Failed to fetch current user profile:', err);
+      await endSession();
     }
   };
 
@@ -45,10 +84,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const token = await getToken();
       if (token) {
-        await fetchCurrentUser();
+        await fetchCurrentUser({ allowCachedFallback: true });
       }
     } catch (err) {
-      console.warn("Error checking auth status:", err);
+      console.warn('Error checking auth status:', err);
     } finally {
       setLoading(false);
     }
@@ -61,14 +100,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
+      const previous = await getCached<any>('profile');
       const response = await api.login(email, password);
       const token = response.data?.token;
-      if (token) {
-        await setToken(token);
-        await fetchCurrentUser();
-      } else {
-        throw new Error("No token returned from login response.");
+      if (!token) {
+        throw new Error('No token returned from login response.');
       }
+      await setToken(token);
+
+      const loginUser = normalizeUser(response.data?.user ?? response.data);
+      const prevId = previous?._id ?? previous?.id;
+      const nextId = loginUser?._id ?? loginUser?.id;
+      // Different account on this device — never mix caches or outbox.
+      if (prevId && nextId && String(prevId) !== String(nextId)) {
+        await clearLocalData();
+      }
+
+      await fetchCurrentUser({ allowCachedFallback: false });
     } catch (err) {
       setUser(null);
       throw err;
@@ -84,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = response.data?.token;
       if (token) {
         await setToken(token);
-        await fetchCurrentUser();
+        await fetchCurrentUser({ allowCachedFallback: false });
       }
     } catch (err) {
       setUser(null);
@@ -104,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore network errors on logout
     } finally {
       await removeToken();
-      // Cached finance data is user-specific; never expose it to the next login.
+      // Intentional logout: wipe user-specific cache and pending mutations.
       await clearLocalData();
       setLoading(false);
       try {
@@ -116,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshUser = async () => {
-    await fetchCurrentUser();
+    await fetchCurrentUser({ allowCachedFallback: true });
   };
 
   return (
@@ -128,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
+        endSession,
         refreshUser,
       }}
     >

@@ -38,7 +38,7 @@ function formatLastSynced(timestamp: number | null): string {
 }
 
 export default function Settings() {
-  const { user, refreshUser, logout } = useAuth();
+  const { user, refreshUser, logout, endSession } = useAuth();
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to log out?", [
@@ -184,8 +184,16 @@ export default function Settings() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      await syncLocalData();
+      const result = await syncLocalData();
       await refreshSyncStatus();
+      if (result.authExpired) {
+        // Toast already shown by LocalSync; clear session but keep outbox.
+        await endSession();
+        return;
+      }
+      if (result.error) {
+        return;
+      }
       await refreshUser();
     } catch {
       toast.error("Sync failed. Check your connection and try again.");

@@ -11,14 +11,60 @@ type OutboxRow = {
   localId: string | null;
 };
 
+export type SyncPushResult = {
+  synced: number;
+  error?: string;
+  authExpired?: boolean;
+};
+
+export type SyncResult = {
+  synced: number;
+  updated: boolean;
+  pending: number;
+  error?: string;
+  authExpired?: boolean;
+};
+
 const DATABASE_NAME = "gig-finance.db";
 const WEB_PREFIX = "gig-finance:";
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
-let activeSync: Promise<number> | undefined;
-
-type SyncResult = { synced: number; updated: boolean; pending: number };
+let activeSync: Promise<SyncPushResult> | undefined;
 type SyncListener = (result: SyncResult) => void;
 const syncListeners = new Set<SyncListener>();
+
+function syncFailureMessage(error: unknown): {
+  message: string;
+  authExpired: boolean;
+} {
+  const status = (error as { response?: { status?: number; data?: { message?: string } } })
+    ?.response?.status;
+  const serverMessage = (error as { response?: { data?: { message?: string } } })
+    ?.response?.data?.message;
+  const code = (error as { code?: string })?.code;
+
+  if (status === 401 || status === 403) {
+    return {
+      message: serverMessage || "Session expired. Please log in again.",
+      authExpired: true,
+    };
+  }
+  if (code === "ECONNABORTED" || code === "ERR_NETWORK") {
+    return {
+      message: "Could not reach the server. Check your connection and try again.",
+      authExpired: false,
+    };
+  }
+  if (status && status >= 400) {
+    return {
+      message: serverMessage || `Sync failed (${status}).`,
+      authExpired: false,
+    };
+  }
+  return {
+    message: serverMessage || "Sync failed. Please try again.",
+    authExpired: false,
+  };
+}
 
 /** Subscribe to completed server→local syncs so screens can refresh UI. */
 export function onDataSynced(listener: SyncListener): () => void {
@@ -115,6 +161,20 @@ export async function invalidateCache(key: string): Promise<void> {
   await db.runAsync("DELETE FROM cache WHERE key = ?", key);
 }
 
+/** Wipe cached collections only — keeps the outbox so unsynced edits survive
+ * session expiry / re-login. */
+export async function clearLocalCache(): Promise<void> {
+  if (Platform.OS === "web") {
+    Object.keys(globalThis.localStorage ?? {})
+      .filter((key) => key.startsWith(WEB_PREFIX) && !key.endsWith("outbox"))
+      .forEach((key) => globalThis.localStorage.removeItem(key));
+    return;
+  }
+  const db = await database();
+  await db.execAsync("DELETE FROM cache;");
+}
+
+/** Full wipe used on intentional logout (cache + pending mutations). */
 export async function clearLocalData(): Promise<void> {
   if (Platform.OS === "web") {
     Object.keys(globalThis.localStorage ?? {})
@@ -291,7 +351,7 @@ async function replaceLocalId(localId: string, remoteId: string): Promise<void> 
 /** Replays local mutations in order. Always re-reads the queue head so
  * local→remote id rewrites from earlier posts are picked up. A failed
  * request stays queued for the next sync. */
-export function syncPending(client: AxiosInstance): Promise<number> {
+export function syncPending(client: AxiosInstance): Promise<SyncPushResult> {
   if (activeSync) return activeSync;
   activeSync = (async () => {
     let synced = 0;
@@ -316,12 +376,17 @@ export function syncPending(client: AxiosInstance): Promise<number> {
 
         await removeOutboxItem(item.id);
         synced += 1;
-      } catch {
+      } catch (error) {
         // Stop on first failure so ordering is preserved; remaining stay queued.
-        break;
+        const failure = syncFailureMessage(error);
+        return {
+          synced,
+          error: failure.message,
+          authExpired: failure.authExpired,
+        };
       }
     }
-    return synced;
+    return { synced };
   })();
   return activeSync.finally(() => {
     activeSync = undefined;

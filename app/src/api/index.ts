@@ -8,24 +8,27 @@ import {
   onDataSynced,
   setCached,
   syncPending,
+  type SyncResult,
 } from "./localData";
 import { getToken } from "./storage";
 
 export { onDataSynced, getPendingOutboxCount };
+export type { SyncResult };
 
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
-  "http://127.0.0.1:3000";
+  "http://127.0.0.1:10000";
 
-/** Bound every request so pages cannot spin forever when the server stalls. */
-const REQUEST_TIMEOUT_MS = 12_000;
+/** Bound every request so pages cannot spin forever when the server stalls.
+ * Render free-tier cold starts often exceed 12s, so keep this generous. */
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export const client = axios.create({
   baseURL: `${API_URL}/api`,
   timeout: REQUEST_TIMEOUT_MS,
 });
 
-let activeFullSync: Promise<number> | undefined;
+let activeFullSync: Promise<SyncResult> | undefined;
 
 // Add JWT token automatically
 client.interceptors.request.use(async (config) => {
@@ -160,17 +163,18 @@ async function mutateCachedObject(key: string, url: string, data: any) {
   return { data: next };
 }
 
-export async function syncLocalData(): Promise<number> {
+export async function syncLocalData(): Promise<SyncResult> {
   if (activeFullSync) return activeFullSync;
 
   activeFullSync = (async () => {
-    const synced = await syncPending(client);
+    const push = await syncPending(client);
     const pendingAfterPush = await getPendingOutboxCount();
 
     // Only pull server → local when the outbox is clear. Otherwise a pull
     // would overwrite rows that still have not been pushed.
     let updated = false;
-    if (pendingAfterPush === 0) {
+    let pullError: string | undefined;
+    if (pendingAfterPush === 0 && !push.error) {
       const resources: [string, () => Promise<any>][] = [
         ["work-logs", () => client.get("/work-logs")],
         ["expenses", () => client.get("/expenses")],
@@ -187,17 +191,30 @@ export async function syncLocalData(): Promise<number> {
       updated = results.some(
         (result) => result.status === "fulfilled" && result.value.changed,
       );
+
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed && failed.status === "rejected") {
+        const status = (failed.reason as { response?: { status?: number } })
+          ?.response?.status;
+        if (status === 401 || status === 403) {
+          pullError = "Session expired. Please log in again.";
+        }
+      }
     }
 
-    if (pendingAfterPush === 0) {
+    if (pendingAfterPush === 0 && !push.error && !pullError) {
       await setCached("last-synced-at", Date.now());
     }
-    notifyDataSynced({
-      synced,
-      updated: updated || synced > 0,
+
+    const result: SyncResult = {
+      synced: push.synced,
+      updated: updated || push.synced > 0,
       pending: pendingAfterPush,
-    });
-    return synced;
+      error: push.error || pullError,
+      authExpired: push.authExpired || Boolean(pullError),
+    };
+    notifyDataSynced(result);
+    return result;
   })();
 
   return activeFullSync.finally(() => {
@@ -238,6 +255,15 @@ export const api = {
 
   getMe: () =>
     cachedRequest("profile", () => client.get("/auth/me")),
+
+  /** Always hits the network so expired tokens are detected (unlike getMe). */
+  getMeOnline: async () => {
+    const response = await client.get("/auth/me");
+    if (response?.data) {
+      await setCached("profile", response.data);
+    }
+    return response;
+  },
 
   updateProfile: async (data: any) => {
     // Password / email changes go online immediately and refresh local profile.
