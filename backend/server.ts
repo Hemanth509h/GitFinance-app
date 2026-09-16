@@ -1,6 +1,7 @@
+import http from "node:http";
+
 import dotenv from "dotenv";
 import express, { NextFunction, Request, Response } from "express";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 
 import { requireApiAuth } from "./middleware/auth.js";
@@ -10,7 +11,7 @@ import expenseRoutes from "./routes/expenses.js";
 import loanRoutes from "./routes/loans.js";
 import workEntryRoutes from "./routes/workEntries.js";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 
@@ -57,6 +58,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Public health checks (Render port / health probes) — no auth, no DB.
+app.get("/", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
+});
+
+app.get("/health", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
+});
+
 async function connectDatabase(): Promise<void> {
   let uri: string | undefined = process.env.MONGODB_URI;
 
@@ -69,6 +79,7 @@ async function connectDatabase(): Promise<void> {
       "MONGODB_URI not set, starting in-memory MongoDB for development...",
     );
 
+    const { MongoMemoryServer } = await import("mongodb-memory-server");
     const mongod = await MongoMemoryServer.create({
       binary: {
         version: "7.0.5",
@@ -84,11 +95,6 @@ async function connectDatabase(): Promise<void> {
 
   console.log("Connected to MongoDB");
 }
-
-connectDatabase().catch((err: unknown) => {
-  console.error("MongoDB connection error:", err);
-  process.exit(1);
-});
 
 // ================================
 // API Routes (auth required unless public allowlist)
@@ -112,11 +118,36 @@ app.use("/api/dashboard", dashboardRoutes);
 // Start Server
 // ================================
 
-const PORT: number = Number(process.env.PORT ?? 3000);
-const HOST: string = process.env.HOST ?? "0.0.0.0";
+const PORT: number = Number(process.env.PORT) || 10000;
 
-app.listen(PORT, HOST, () => {
-  console.log(`Server running on ${HOST}:${PORT}`);
+async function start(): Promise<void> {
+  if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET must be set in production.");
+  }
+
+  const server = http.createServer(app);
+
+  // Bind immediately so Render's port scanner detects an open port
+  // even if MongoDB is still connecting.
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(PORT, "0.0.0.0", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  console.log(
+    `Server listening on 0.0.0.0:${typeof address === "object" && address ? address.port : PORT}`,
+  );
+
+  await connectDatabase();
+}
+
+start().catch((err: unknown) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
 });
 
 export default app;

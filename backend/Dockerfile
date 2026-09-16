@@ -13,14 +13,14 @@ FROM node:20.19-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
-ENV HOST=0.0.0.0
+# Render injects PORT; default matches Render's Docker default.
+ENV PORT=10000
 
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
 
-EXPOSE 3000
+EXPOSE 10000
 
 CMD ["node", "dist/server.js"]
